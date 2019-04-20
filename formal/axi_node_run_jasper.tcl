@@ -1,6 +1,7 @@
 
 # Load sources
 analyze -sv ../src/apb_regs_top.sv \
+    ../deps/axi/src/axi_pkg.sv \
     ../src/axi_address_decoder_AR.sv \
     ../src/axi_address_decoder_AW.sv \
     ../src/axi_address_decoder_BR.sv \
@@ -23,7 +24,6 @@ analyze -sv ../src/apb_regs_top.sv \
     ../src/axi_RR_Flag_Req.sv \
     ../deps/common_cells/src/fifo_v2.sv \
     ../deps/common_cells/src/fifo_v3.sv \
-    ../deps/axi/src/axi_pkg.sv \
     ../deps/axi/src/axi_intf.sv
  
 
