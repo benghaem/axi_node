@@ -39,6 +39,7 @@
 //                                                                               //
 // ============================================================================= //
 
+
 module axi_BR_allocator #(
     parameter                   AXI_USER_W     = 6,
     parameter                   N_INIT_PORT    = 1,
@@ -85,6 +86,8 @@ module axi_BR_allocator #(
 
 localparam      AUX_WIDTH = AXI_DATA_W + 2 + 1 + AXI_USER_W;
 
+// Hack to avoid using axi_pkg::
+localparam axi_pkg_RESP_DECERR = 2'b11;
 
 
 
@@ -266,7 +269,7 @@ begin
         rready_ARB_TREE = 1'b0;
         CounterBurstNS = '0;
         error_gnt_o = 1'b1;
-        rresp_o     = axi_pkg::RESP_DECERR;
+        rresp_o     = axi_pkg_RESP_DECERR;
         rdata_o     = { (AXI_DATA_W/32) {32'hDEADBEEF}};
         rvalid_o    = 1'b1;
         ruser_o     = error_user_S;
@@ -286,7 +289,7 @@ begin
 
         rready_ARB_TREE = 1'b0;
 
-        rresp_o     = axi_pkg::RESP_DECERR;
+        rresp_o     = axi_pkg_RESP_DECERR;
         rdata_o     = { (AXI_DATA_W/32) {32'hDEADBEEF}};
         rvalid_o    = 1'b1;
         ruser_o     = error_user_S;

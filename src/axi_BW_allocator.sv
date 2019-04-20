@@ -78,6 +78,10 @@ module axi_BW_allocator #(
 
 localparam      AUX_WIDTH = 2 + AXI_USER_W;
 
+// Hack to avoid using axi_pkg::
+localparam axi_pkg_RESP_DECERR = 2'b11;
+
+
 
 logic [N_INIT_PORT-1:0][AUX_WIDTH-1:0]                                  AUX_VECTOR_IN;
 logic [AUX_WIDTH-1:0]                                                   AUX_VECTOR_OUT;
@@ -219,7 +223,7 @@ begin
     begin
         bready_ARB_TREE = 1'b0;
         error_gnt_o = 1'b1;
-        bresp_o     = axi_pkg::RESP_DECERR;
+        bresp_o     = axi_pkg_RESP_DECERR;
         bvalid_o    = 1'b1;
         buser_o     = error_user_S;
         bid_o       = error_id_S;
