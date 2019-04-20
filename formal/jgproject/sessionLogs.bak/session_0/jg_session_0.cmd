@@ -1,3 +1,14 @@
+#----------------------------------------
+# JasperGold Version Info
+# tool      : JasperGold 2015.09
+# platform  : Linux 4.9.0-8-amd64
+# version   : 2015.09 FCS 64 bits
+# build date: 2015.09.29 22:07:32 PDT
+#----------------------------------------
+# started Sat Apr 20 12:40:06 CDT 2019
+# hostname  : daffy
+# pid       : 24153
+# arguments : '-label' 'session_0' '-console' 'daffy:45881' '-style' 'windows' '-proj' '/home/polaris/bghaem/verif/axi_node/formal/jgproject/sessionLogs/session_0' '-init' '-hidden' '/home/polaris/bghaem/verif/axi_node/formal/jgproject/.tmp/.initCmds.tcl' 'axi_node_run_jasper.tcl'
 
 # Load sources
 analyze -sv ../src/apb_regs_top.sv \
@@ -23,17 +34,4 @@ analyze -sv ../src/apb_regs_top.sv \
     ../src/axi_RR_Flag_Req.sv \
     ../deps/common_cells/src/fifo_v2.sv \
     ../deps/common_cells/src/fifo_v3.sv \
-    ../deps/axi/src/axi_pkg.sv \
     ../deps/axi/src/axi_intf.sv
- 
-
-# Elaborate
-elaborate -top axi_node
-
-# Setup clock and reset
-clock clk
-reset -expression !rst_n
-
-#run
-prove -bg all
-

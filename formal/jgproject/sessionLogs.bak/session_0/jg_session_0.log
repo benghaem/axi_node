@@ -1,0 +1,137 @@
+#----------------------------------------
+# JasperGold Version Info
+# tool      : JasperGold 2015.09
+# platform  : Linux 4.9.0-8-amd64
+# version   : 2015.09 FCS 64 bits
+# build date: 2015.09.29 22:07:32 PDT
+#----------------------------------------
+# started Sat Apr 20 12:40:06 CDT 2019
+# hostname  : daffy
+# pid       : 24153
+# arguments : '-label' 'session_0' '-console' 'daffy:45881' '-style' 'windows' '-proj' '/home/polaris/bghaem/verif/axi_node/formal/jgproject/sessionLogs/session_0' '-init' '-hidden' '/home/polaris/bghaem/verif/axi_node/formal/jgproject/.tmp/.initCmds.tcl' 'axi_node_run_jasper.tcl'
+
+Any disclosure about the Cadence Design Systems software or its use
+model to any third party violates the written Non-Disclosure Agreement
+between Cadence Design Systems, Inc. and the customer.
+
+THIS SOFTWARE CONTAINS CONFIDENTIAL INFORMATION AND TRADE SECRETS OF
+CADENCE DESIGN SYSTEMS, INC. USE, DISCLOSURE, OR REPRODUCTION IS
+PROHIBITED WITHOUT THE PRIOR EXPRESS WRITTEN PERMISSION OF CADENCE
+DESIGN SYSTEMS, INC.
+
+Copyright (C) 2000-2015 Cadence Design Systems, Inc. All Rights
+Reserved.  Unpublished -- rights reserved under the copyright laws of
+the United States.
+
+This product includes software developed by others and redistributed
+according to license agreement. See doc/third_party_readme.txt for
+further details.
+
+RESTRICTED RIGHTS LEGEND
+
+Use, duplication, or disclosure by the Government is subject to
+restrictions as set forth in subparagraph (c) (1) (ii) of the Rights in
+Technical Data and Computer Software clause at DFARS 252.227-7013 or
+subparagraphs (c) (1) and (2) of Commercial Computer Software -- Restricted
+Rights at 48 CFR 52.227-19, as applicable.
+
+
+                          Cadence Design Systems, Inc. 
+                          2655 Seely Avenue
+                          San Jose, CA 95134
+                          Phone: 408.943.1234
+
+For technical assistance visit http://support.cadence.com.
+
+JasperGold Apps Analysis Session - /home/polaris/bghaem/verif/axi_node/formal/jgproject/sessionLogs/session_0
+
+INFO: successfully checked out licenses "jasper_interactive" and "jasper_fpv".
+INFO: reading configuration file "/home/polaris/bghaem/.config/jasper/jaspergold.conf".
+% 
+% # Load sources
+% analyze -sv ../src/apb_regs_top.sv \
+    ../src/axi_address_decoder_AR.sv \
+    ../src/axi_address_decoder_AW.sv \
+    ../src/axi_address_decoder_BR.sv \
+    ../src/axi_address_decoder_BW.sv \
+    ../src/axi_address_decoder_DW.sv \
+    ../src/axi_AR_allocator.sv \
+    ../src/axi_ArbitrationTree.sv \
+    ../src/axi_AW_allocator.sv \
+    ../src/axi_BR_allocator.sv \
+    ../src/axi_BW_allocator.sv \
+    ../src/axi_DW_allocator.sv \
+    ../src/axi_FanInPrimitive_Req.sv \
+    ../src/axi_multiplexer.sv \
+    ../src/axi_node.sv \
+    ../src/axi_node_intf_wrap.sv \
+    ../src/axi_node_wrap_with_slices.sv \
+    ../src/axi_regs_top.sv \
+    ../src/axi_request_block.sv \
+    ../src/axi_response_block.sv \
+    ../src/axi_RR_Flag_Req.sv \
+    ../deps/common_cells/src/fifo_v2.sv \
+    ../deps/common_cells/src/fifo_v3.sv \
+    ../deps/axi/src/axi_intf.sv
+[-- (VERI-1482)] Analyzing Verilog file /usr/local/packages/cadence_2015/jasper_2015.09/lib/verilog/packages/std/std.sv into library std
+[-- (VERI-1482)] Analyzing Verilog file ../src/apb_regs_top.sv
+[-- (VERI-1482)] Analyzing Verilog file ../src/axi_address_decoder_AR.sv
+[WARN (VERI-1212)] ../src/axi_address_decoder_AR.sv(96): block identifier is required on this block
+[WARN (VERI-1212)] ../src/axi_address_decoder_AR.sv(97): block identifier is required on this block
+[WARN (VERI-1212)] ../src/axi_address_decoder_AR.sv(105): block identifier is required on this block
+[WARN (VERI-1212)] ../src/axi_address_decoder_AR.sv(106): block identifier is required on this block
+[WARN (VERI-1212)] ../src/axi_address_decoder_AR.sv(113): block identifier is required on this block
+[-- (VERI-1482)] Analyzing Verilog file ../src/axi_address_decoder_AW.sv
+[WARN (VERI-1212)] ../src/axi_address_decoder_AW.sv(116): block identifier is required on this block
+[WARN (VERI-1212)] ../src/axi_address_decoder_AW.sv(117): block identifier is required on this block
+[WARN (VERI-1212)] ../src/axi_address_decoder_AW.sv(125): block identifier is required on this block
+[WARN (VERI-1212)] ../src/axi_address_decoder_AW.sv(126): block identifier is required on this block
+[WARN (VERI-1212)] ../src/axi_address_decoder_AW.sv(133): block identifier is required on this block
+[-- (VERI-1482)] Analyzing Verilog file ../src/axi_address_decoder_BR.sv
+[-- (VERI-1482)] Analyzing Verilog file ../src/axi_address_decoder_BW.sv
+[-- (VERI-1482)] Analyzing Verilog file ../src/axi_address_decoder_DW.sv
+[-- (VERI-1482)] Analyzing Verilog file ../src/axi_AR_allocator.sv
+[-- (VERI-1482)] Analyzing Verilog file ../src/axi_ArbitrationTree.sv
+[-- (VERI-1482)] Analyzing Verilog file ../src/axi_AW_allocator.sv
+[-- (VERI-1482)] Analyzing Verilog file ../src/axi_BR_allocator.sv
+[-- (VERI-1482)] Analyzing Verilog file ../src/axi_BW_allocator.sv
+[-- (VERI-1482)] Analyzing Verilog file ../src/axi_DW_allocator.sv
+[-- (VERI-1482)] Analyzing Verilog file ../src/axi_FanInPrimitive_Req.sv
+[-- (VERI-1482)] Analyzing Verilog file ../src/axi_multiplexer.sv
+[-- (VERI-1482)] Analyzing Verilog file ../src/axi_node.sv
+[-- (VERI-1482)] Analyzing Verilog file ../src/axi_node_intf_wrap.sv
+[WARN (VERI-1212)] ../src/axi_node_intf_wrap.sv(203): block identifier is required on this block
+[WARN (VERI-1212)] ../src/axi_node_intf_wrap.sv(258): block identifier is required on this block
+[-- (VERI-1482)] Analyzing Verilog file ../src/axi_node_wrap_with_slices.sv
+[-- (VERI-1482)] Analyzing Verilog file ../src/axi_regs_top.sv
+[WARN (VERI-1212)] ../src/axi_regs_top.sv(430): block identifier is required on this block
+[WARN (VERI-1212)] ../src/axi_regs_top.sv(431): block identifier is required on this block
+[WARN (VERI-1212)] ../src/axi_regs_top.sv(437): block identifier is required on this block
+[-- (VERI-1482)] Analyzing Verilog file ../src/axi_request_block.sv
+[-- (VERI-1482)] Analyzing Verilog file ../src/axi_response_block.sv
+[-- (VERI-1482)] Analyzing Verilog file ../src/axi_RR_Flag_Req.sv
+[-- (VERI-1482)] Analyzing Verilog file ../deps/common_cells/src/fifo_v2.sv
+[-- (VERI-1482)] Analyzing Verilog file ../deps/common_cells/src/fifo_v3.sv
+[-- (VERI-1482)] Analyzing Verilog file ../deps/axi/src/axi_intf.sv
+[ERROR (VERI-1128)] ../deps/axi/src/axi_intf.sv(16): axi_pkg is not declared
+[ERROR (VERI-1072)] ../deps/axi/src/axi_intf.sv(119): module AXI_BUS ignored due to previous errors
+[ERROR (VERI-1072)] ../deps/axi/src/axi_intf.sv(224): module AXI_BUS_DV ignored due to previous errors
+[ERROR (VERI-1072)] ../deps/axi/src/axi_intf.sv(305): module AXI_BUS_ASYNC ignored due to previous errors
+[ERROR (VERI-1072)] ../deps/axi/src/axi_intf.sv(377): module AXI_LITE ignored due to previous errors
+[ERROR (VERI-1072)] ../deps/axi/src/axi_intf.sv(450): module AXI_LITE_DV ignored due to previous errors
+[ERROR (VERI-1072)] ../deps/axi/src/axi_intf.sv(476): module AXI_ROUTING_RULES ignored due to previous errors
+[ERROR (VERI-1072)] ../deps/axi/src/axi_intf.sv(500): module AXI_ARBITRATION ignored due to previous errors
+Summary of errors detected:
+	[ERROR (VERI-1128)] ../deps/axi/src/axi_intf.sv(16): axi_pkg is not declared
+	[ERROR (VERI-1072)] ../deps/axi/src/axi_intf.sv(119): module AXI_BUS ignored due to previous errors
+	[ERROR (VERI-1072)] ../deps/axi/src/axi_intf.sv(224): module AXI_BUS_DV ignored due to previous errors
+	[ERROR (VERI-1072)] ../deps/axi/src/axi_intf.sv(305): module AXI_BUS_ASYNC ignored due to previous errors
+	[ERROR (VERI-1072)] ../deps/axi/src/axi_intf.sv(377): module AXI_LITE ignored due to previous errors
+	[ERROR (VERI-1072)] ../deps/axi/src/axi_intf.sv(450): module AXI_LITE_DV ignored due to previous errors
+	[ERROR (VERI-1072)] ../deps/axi/src/axi_intf.sv(476): module AXI_ROUTING_RULES ignored due to previous errors
+	[ERROR (VERI-1072)] ../deps/axi/src/axi_intf.sv(500): module AXI_ARBITRATION ignored due to previous errors
+ERROR (ENL034): 8 errors detected in the design file(s).
+
+ERROR: problem encountered at line 3 in file axi_node_run_jasper.tcl
+INFO: Waiting for proof threads to stop...
+INFO: Proof threads stopped.
