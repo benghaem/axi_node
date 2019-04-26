@@ -10,7 +10,7 @@
 
 module axi_node_intf_wrap #(
     parameter NB_MASTER      = 4,
-    parameter NB_SLAVE       = 4,
+    parameter NB_SLAVE       = 2,
     parameter AXI_ADDR_WIDTH = 32,
     parameter AXI_DATA_WIDTH = 32,
     parameter AXI_ID_WIDTH   = 10,
@@ -381,5 +381,7 @@ module axi_node_intf_wrap #(
   assign s_valid_rule       = '1;
 
   assign s_connectivity_map = '1;
+
+  assert property(@(posedge clk) disable iff(!rst_n) slave[0].aw_addr == '0 && $rose(slave[0].aw_valid) |-> ##[0:10] $rose(master[0].aw_valid));
 
 endmodule

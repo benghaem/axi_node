@@ -16,7 +16,6 @@ analyze -sv ../src/apb_regs_top.sv \
     ../src/axi_FanInPrimitive_Req.sv \
     ../src/axi_multiplexer.sv \
     ../src/axi_node.sv \
-    ../src/axi_node_intf_wrap.sv \
     ../src/axi_node_wrap_with_slices.sv \
     ../src/axi_regs_top.sv \
     ../src/axi_request_block.sv \
@@ -24,16 +23,17 @@ analyze -sv ../src/apb_regs_top.sv \
     ../src/axi_RR_Flag_Req.sv \
     ../deps/common_cells/src/fifo_v2.sv \
     ../deps/common_cells/src/fifo_v3.sv \
-    ../deps/axi/src/axi_intf.sv
+    ../formal/axi_intf_for_test.sv \
+    ../formal/axi_node_intf_wrap_for_test.sv
  
 
 # Elaborate
-elaborate -top axi_node
+elaborate -top axi_node_intf_wrap
 
 # Setup clock and reset
 clock clk
 reset -expression !rst_n
 
 #run
-prove -bg all
+prove -bg -all
 
