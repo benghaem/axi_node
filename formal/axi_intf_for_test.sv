@@ -20,7 +20,7 @@ import axi_pkg::*;
 interface AXI_BUS #(
   parameter AXI_ADDR_WIDTH = 32,
   parameter AXI_DATA_WIDTH = 32,
-  parameter AXI_ID_WIDTH   = 12,
+  parameter AXI_ID_WIDTH   = 11,
   parameter AXI_USER_WIDTH = 0
 );
 
