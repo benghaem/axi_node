@@ -379,9 +379,22 @@ module axi_node_intf_wrap #(
 
 
   assign s_valid_rule       = '1;
-
   assign s_connectivity_map = '1;
 
-  assert property(@(posedge clk) disable iff(!rst_n) slave[0].aw_addr == '0 && $rose(slave[0].aw_valid) |-> ##[0:10] $rose(master[0].aw_valid));
+
+//    _   ___ ___ _   _ __  __ ___
+//   /_\ / __/ __| | | |  \/  | __|
+//  / _ \\__ \__ \ |_| | |\/| | _|
+// /_/ \_\___/___/\___/|_|  |_|___|
+//
+
+//    _   ___ ___ ___ ___ _____
+//   /_\ / __/ __| __| _ \_   _|
+//  / _ \\__ \__ \ _||   / | |
+// /_/ \_\___/___/___|_|_\ |_|
+//
+
+ assert property(@(posedge clk) disable iff(!rst_n) );
+
 
 endmodule
