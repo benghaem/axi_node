@@ -383,45 +383,94 @@ module axi_node_intf_wrap #(
 
 
 
+
+
+//
+//  ___ ___  ___ __  __   _   _       ___ ___  _  _ ___ ___ ___ 
+// | __/ _ \| _ \  \/  | /_\ | |     / __/ _ \| \| | __|_ _/ __|
+// | _| (_) |   / |\/| |/ _ \| |__  | (_| (_) | .` | _| | | (_ |
+// |_| \___/|_|_\_|  |_/_/ \_\____|  \___\___/|_|\_|_| |___\___|
+//
+//
+
+//SLAVE RESPONSE TIME
+localparam SL_RT = 2;
+
 //
 //  __  __ __  __   _   ___     _   ___ ___ _   _ __  __ ___
 // |  \/  |  \/  | /_\ | _ \   /_\ / __/ __| | | |  \/  | __|
 // | |\/| | |\/| |/ _ \|  _/  / _ \\__ \__ \ |_| | |\/| | _|
 // |_|  |_|_|  |_/_/ \_\_|   /_/ \_\___/___/\___/|_|  |_|___|
+//
+//
 
 parameter mm_start = 32'h0000;
 parameter mm_len = 32'h1000;
-parameter start_a_0 = mm_start;
-parameter start_a_1 = start_a_0 + mm_len;
-parameter start_a_2 = start_a_1 + mm_len;
-parameter start_a_3 = start_a_2 + mm_len;
 
-parameter end_a_0 = start_a_1;
-parameter end_a_1 = start_a_2;
-parameter end_a_2 = start_a_3;
-parameter end_a_3 = start_a_3 + mm_len;
-parameter mm_end = end_a_3;
+integer start_addr[NB_MASTER-1:0] ;
+integer end_addr[NB_MASTER-1:0];
+integer mm_end;
 
-assume property( start_addr_i[0] == start_a_0 );
-assume property( end_addr_i[0] == end_a_0 );
+always @(posedge clk) begin
+    if (!rst_n) begin
+        integer i;
+        integer tmp_addr; 
+        tmp_addr = mm_start;
+        for (i = 0; i < NB_MASTER; i++)
+        begin
+            start_addr[i] = tmp_addr;
+            tmp_addr = tmp_addr + mm_len;
+            end_addr[i] = tmp_addr;
+        end
+        mm_end = tmp_addr;
+    end
+end
 
-assume property( start_addr_i[1] == start_a_1 );
-assume property( end_addr_i[1] == end_a_1 );
+generate
+    genvar i;
+    for (i = 0; i < NB_MASTER; i++)
+    begin
+        assume property( @(posedge clk) start_addr_i[i] == start_addr[i] );
+        assume property( @(posedge clk) end_addr_i[i] == end_addr[i]);
+    end
+endgenerate
 
-assume property( start_addr_i[2] == start_a_2 );
-assume property( end_addr_i[2] == end_a_2 );
+//Check for equality between a and b
+property prop_eq(a,b);
+    @(posedge clk) disable iff(!rst_n)
+    a == b;
+endproperty
 
-assume property( start_addr_i[3] == start_a_3 );
-assume property( end_addr_i[3] == end_a_3);
+//Signal is within correct range
+property correct_address(addr_sig);
+    @(posedge clk) disable iff(!rst_n)
+    addr_sig < mm_end && addr_sig > mm_start;
+endproperty
+
+//Signal does not set the high bits of the id high (which are resevered for the
+//interconnect)
+property correct_id(id_sig);
+    @(posedge clk) disable iff(!rst_n)
+        id_sig <= 2**AXI_ID_WIDTH -1;
+endproperty
+
+//Signal a implies another signal is stable
+property a_imp_stable(sig_a, sig_stable);
+    @(posedge clk) disable iff(!rst_n)
+    sig_a |-> $stable(sig_stable);
+endproperty
+
 
 generate
     genvar j;
     for (j = 0; j < NB_SLAVE; j++)
     begin
-        correct_addresses: assume property(@(posedge clk) disable iff(!rst_n)
-            slave[j].ar_addr < mm_end);
-        correct_ids: assume property(@(posedge clk) disable iff(!rst_n)
-            slave[j].ar_id <= 2**AXI_ID_WIDTH -1 );
+        correct_addr_ar: assume property(correct_address(slave[j].ar_addr));
+        correct_addr_aw: assume property(correct_address(slave[j].aw_addr));
+        correct_id_ar: assume property(correct_id(slave[j].ar_id));
+        correct_id_aw: assume property(correct_id(slave[j].aw_id));
+        zero_region_ar: assume property(prop_eq(slave[j].ar_region,0));
+        zero_region_aw: assume property(prop_eq(slave[j].aw_region,0));
     end
 endgenerate
 
@@ -434,18 +483,82 @@ endgenerate
 // /_/ \_\___/___/\___/|_|  |_|___|
 //
 
+
+generate
+    genvar k;
+    for (k = 0; k < NB_MASTER; k++)
+    begin
+        functional_slave_ar: assume property(@(posedge clk) disable iff(!rst_n)
+            $fell(master[k].ar_ready) |-> ##[0:SL_RT] $rose(master[k].ar_ready));
+        functional_slave_aw: assume property(@(posedge clk) disable iff(!rst_n)
+            $fell(master[k].aw_ready) |-> ##[0:SL_RT] $rose(master[k].aw_ready));
+    end
+endgenerate
+
 generate
     genvar j;
     for (j = 0; j < NB_SLAVE; j++)
     begin
+        // Valid should remain high until the cycle after ready is asserted
         handshake_m_ar_0: assume property(@(posedge clk) disable iff(!rst_n)
             slave[j].ar_valid && !slave[j].ar_ready |=> slave[j].ar_valid);
+        handshake_m_aw_0: assume property(@(posedge clk) disable iff(!rst_n)
+            slave[j].aw_valid && !slave[j].aw_ready |=> slave[j].aw_valid);
+        handshake_m_w_0: assume property(@(posedge clk) disable iff(!rst_n)
+            slave[j].w_valid && !slave[j].w_ready |=> slave[j].w_valid);
 
-        const_m_addr: assume property(@(posedge clk) disable iff(!rst_n)
-            slave[j].ar_valid |-> $stable(slave[j].ar_addr));
+
+        // Addresses should remain stable
+        const_m_ar_id: assume property(a_imp_stable(slave[j].ar_valid, slave[j].ar_id));
+        const_m_ar_addr: assume property(a_imp_stable(slave[j].ar_valid, slave[j].ar_addr));
+        const_m_ar_len: assume property(a_imp_stable(slave[j].ar_valid, slave[j].ar_len));
+        const_m_ar_size: assume property(a_imp_stable(slave[j].ar_valid, slave[j].ar_size));
+        const_m_ar_burst: assume property(a_imp_stable(slave[j].ar_valid, slave[j].ar_burst));
+        const_m_ar_lock: assume property(a_imp_stable(slave[j].ar_valid, slave[j].ar_lock));
+        const_m_ar_cache: assume property(a_imp_stable(slave[j].ar_valid, slave[j].ar_cache));
+        const_m_ar_prot: assume property(a_imp_stable(slave[j].ar_valid, slave[j].ar_prot));
+        const_m_ar_qos: assume property(a_imp_stable(slave[j].ar_valid, slave[j].ar_qos));
+        const_m_ar_region: assume property(a_imp_stable(slave[j].ar_valid, slave[j].ar_region));
+        const_m_ar_user: assume property(a_imp_stable(slave[j].ar_valid, slave[j].ar_user));
+
+        const_m_aw_id: assume property(a_imp_stable(slave[j].aw_valid, slave[j].aw_id));
+        const_m_aw_addr: assume property(a_imp_stable(slave[j].aw_valid, slave[j].aw_addr));
+        const_m_aw_len: assume property(a_imp_stable(slave[j].aw_valid, slave[j].aw_len));
+        const_m_aw_size: assume property(a_imp_stable(slave[j].aw_valid, slave[j].aw_size));
+        const_m_aw_burst: assume property(a_imp_stable(slave[j].aw_valid, slave[j].aw_burst));
+        const_m_aw_lock: assume property(a_imp_stable(slave[j].aw_valid, slave[j].aw_lock));
+        const_m_aw_cache: assume property(a_imp_stable(slave[j].aw_valid, slave[j].aw_cache));
+        const_m_aw_prot: assume property(a_imp_stable(slave[j].aw_valid, slave[j].aw_prot));
+        const_m_aw_qos: assume property(a_imp_stable(slave[j].aw_valid, slave[j].aw_qos));
+        const_m_aw_region: assume property(a_imp_stable(slave[j].aw_valid, slave[j].aw_region));
+        const_m_aw_user: assume property(a_imp_stable(slave[j].aw_valid, slave[j].aw_user));
+
+        const_m_w_user: assume property(a_imp_stable(slave[j].w_valid, slave[j].w_user));
+
+    end
+endgenerate
 
 
-        
+//
+//  ___ _   _ ___  ___ _____    ___ _____ ___ _
+// | _ ) | | | _ \/ __|_   _|  / __|_   _| _ \ |
+// | _ \ |_| |   /\__ \ | |   | (__  | | |   / |__
+// |___/\___/|_|_\|___/ |_|    \___| |_| |_|_\____|
+//
+//
+
+generate
+    genvar j;
+    for (j = 0; j < NB_SLAVE; j++)
+    begin
+    assume property(@(posedge clk) disable iff (!rst_n)
+        !slave[j].w_valid |-> !slave[j].w_last);
+
+    assume property(@(posedge clk) disable iff (!rst_n)
+        $fell(slave[j].w_valid) |-> $past($rose(slave[j].w_last)));
+
+    assume property(@(posedge clk) disable iff (!rst_n)
+        slave[j].w_last |=> !slave[j].w_valid);
     end
 endgenerate
 
@@ -456,6 +569,7 @@ endgenerate
 //  / _ \\__ \__ \ _||   / | |
 // /_/ \_\___/___/___|_|_\ |_|
 //
+
 
 //Reset Assertions
 generate
@@ -470,6 +584,7 @@ generate
             $past(!rst_n) |-> master[j].w_valid == 0);
     end
 endgenerate
+
 generate
     genvar i;
     for (i = 0; i < NB_SLAVE; i++)
@@ -483,26 +598,24 @@ endgenerate
 
 
 generate
-    genvar j;
-    for (j = 0; j < NB_SLAVE; j++)
-    begin
-        valid_master_iface_0: assert property(@(posedge clk) disable iff(!rst_n) 
-            slave[j].ar_valid && slave[j].ar_addr < end_a_0 |-> ##[0:1] master[0].ar_valid );
-        valid_master_iface_1: assert property(@(posedge clk) disable iff(!rst_n)
-            slave[j].ar_valid && (slave[j].ar_addr < end_a_1 && slave[j].ar_addr >= start_a_1) |-> ##[0:1] master[1].ar_valid );
-        valid_master_iface_2: assert property(@(posedge clk) disable iff(!rst_n) 
-            slave[j].ar_valid && (slave[j].ar_addr < end_a_2 && slave[j].ar_addr >= start_a_2) |-> ##[0:1] master[2].ar_valid );
-        valid_master_iface_3: assert property(@(posedge clk) disable iff(!rst_n)
-            slave[j].ar_valid && (slave[j].ar_addr < end_a_3 && slave[j].ar_addr >= start_a_3) |-> ##[0:1] master[3].ar_valid );
+    genvar j, k;
 
-        addr_master_iface_0: assert property(@(posedge clk) disable iff(!rst_n) 
-            slave[j].ar_valid && slave[j].ar_addr < end_a_0 |-> ##[0:1] master[0].ar_id == {j[0],slave[j].ar_id[AXI_ID_WIDTH-1:0]}  );
-        addr_master_iface_1: assert property(@(posedge clk) disable iff(!rst_n)
-            slave[j].ar_valid && (slave[j].ar_addr < end_a_1 && slave[j].ar_addr >= start_a_1) |-> master[0].ar_id == {j[0],slave[j].ar_id[AXI_ID_WIDTH-1:0]} );
-        addr_master_iface_2: assert property(@(posedge clk) disable iff(!rst_n) 
-            slave[j].ar_valid && (slave[j].ar_addr < end_a_2 && slave[j].ar_addr >= start_a_2) |-> master[0].ar_id == {j[0],slave[j].ar_id[AXI_ID_WIDTH-1:0]} );
-        addr_master_iface_3: assert property(@(posedge clk) disable iff(!rst_n)
-            slave[j].ar_valid && (slave[j].ar_addr < end_a_3 && slave[j].ar_addr >= start_a_3) |-> master[0].ar_id == {j[0],slave[j].ar_id[AXI_ID_WIDTH-1:0]} );
+    for (k = 0; k < NB_MASTER; k++)
+    begin
+        for (j = 0; j < NB_SLAVE; j++)
+        begin
+            valid_master_iface_ar: assert property(@(posedge clk) disable iff(!rst_n) 
+            slave[j].ar_valid && slave[j].ar_addr < end_addr[k] && slave[j].ar_addr >= start_addr[k] |-> ##[0:SL_RT] master[k].ar_valid );
+            
+            valid_master_iface_aw: assert property(@(posedge clk) disable iff(!rst_n) 
+            slave[j].aw_valid && slave[j].aw_addr < end_addr[k] && slave[j].aw_addr >= start_addr[k] |-> ##[0:SL_RT] master[k].aw_valid );
+
+            addr_master_iface_ar: assert property(@(posedge clk) disable iff(!rst_n)
+            slave[j].ar_valid && slave[j].ar_addr < end_addr[k] && slave[j].ar_addr >= start_addr[k] |-> ##[0:SL_RT] (master[k].ar_id == {j[0],slave[j].ar_id[AXI_ID_WIDTH-1:0]}) );
+            
+            addr_master_iface_aw: assert property(@(posedge clk) disable iff(!rst_n)
+            slave[j].aw_valid && slave[j].aw_addr < end_addr[k] && slave[j].aw_addr >= start_addr[k] |-> ##[0:SL_RT] (master[k].aw_id == {j[0],slave[j].aw_id[AXI_ID_WIDTH-1:0]}) );
+        end
     end
 endgenerate
 
