@@ -543,7 +543,7 @@ generate
 	
 	// Valid should fall after seeing a ready
 	handshake_m_ar_v: assume property(@(posedge clk) disable iff(!rst_n)
-		slave[j].ar_ready |=> !slave[j].ar_valid);
+		slave[j].ar_ready && slave[j].ar_valid |=> $fell(slave[j].ar_valid));
 
 
         // Addresses should remain stable
