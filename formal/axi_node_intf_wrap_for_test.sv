@@ -395,6 +395,7 @@ module axi_node_intf_wrap #(
 
 //SLAVE RESPONSE TIME
 localparam SL_RT = 2;
+localparam MX_BURST = 2;
 
 //
 //  __  __ __  __   _   ___     _   ___ ___ _   _ __  __ ___
@@ -484,10 +485,25 @@ endgenerate
 //
 
 
+
+
+
 generate
     genvar k;
     for (k = 0; k < NB_MASTER; k++)
     begin
+        reset_ar: assume property(@(posedge clk) disable iff(!rst_n)
+            $past(!rst_n) |-> $past(!master[k].ar_ready));
+        reset_aw: assume property(@(posedge clk) disable iff(!rst_n)
+            $past(!rst_n) |-> $past(!master[k].aw_ready));
+        reset_w: assume property(@(posedge clk) disable iff(!rst_n)
+            $past(!rst_n) |-> $past(!master[k].w_ready));
+
+        reset_b_val: assume property(@(posedge clk)
+            $rose(rst_n) |-> $past(master[k].w_valid == 0));
+        reset_r_val: assume property(@(posedge clk)
+            $rose(rst_n) |-> $past(master[k].r_valid == 0));
+
         functional_slave_ar: assume property(@(posedge clk) disable iff(!rst_n)
             $fell(master[k].ar_ready) |-> ##[0:SL_RT] $rose(master[k].ar_ready));
         functional_slave_aw: assume property(@(posedge clk) disable iff(!rst_n)
@@ -499,6 +515,21 @@ generate
     genvar j;
     for (j = 0; j < NB_SLAVE; j++)
     begin
+
+        reset_ar_val: assume property(@(posedge clk) disable iff(!rst_n)
+            $past(!rst_n) |-> $past(!slave[j].ar_valid));
+        reset_aw_val: assume property(@(posedge clk) disable iff(!rst_n)
+            $past(!rst_n) |-> $past(!slave[j].aw_valid));
+        reset_w_val: assume property(@(posedge clk) disable iff(!rst_n)
+            $past(!rst_n) |-> $past(!slave[j].w_valid));
+
+
+        reset_b: assume property(@(posedge clk)
+            $rose(rst_n) |-> $past(slave[j].w_ready == 0));
+        reset_r: assume property(@(posedge clk)
+            $rose(rst_n) |-> $past(slave[j].r_ready == 0));
+
+
         // Valid should remain high until the cycle after ready is asserted
         handshake_m_ar_0: assume property(@(posedge clk) disable iff(!rst_n)
             slave[j].ar_valid && !slave[j].ar_ready |=> slave[j].ar_valid);
@@ -546,11 +577,18 @@ endgenerate
 // |___/\___/|_|_\|___/ |_|    \___| |_| |_|_\____|
 //
 //
-
 generate
     genvar j;
     for (j = 0; j < NB_SLAVE; j++)
     begin
+
+    assume property(@(posedge clk) disable iff (!rst_n)
+        $rose(slave[j].aw_valid) |=> slave[j].w_valid);
+
+        //FIXME: THIS SEEMS INCORRECT
+    assume property(@(posedge clk) disable iff (!rst_n)
+        slave[j].w_valid |-> ##[0:MX_BURST] (slave[j].w_last && !slave[j].w_valid));
+
     assume property(@(posedge clk) disable iff (!rst_n)
         !slave[j].w_valid |-> !slave[j].w_last);
 
@@ -559,6 +597,22 @@ generate
 
     assume property(@(posedge clk) disable iff (!rst_n)
         slave[j].w_last |=> !slave[j].w_valid);
+
+    assume property(@(posedge clk) disable iff(!rst_n)
+        slave[j].w_last |=> slave[j].b_valid);
+
+    assume property(@(posedge clk) disable iff(!rst_n)
+        slave[j].b_valid && !slave[j].b_ready |=> slave[j].b_valid);
+
+    end
+endgenerate
+
+generate
+    genvar k;
+    for (k = 0; k < NB_MASTER; k++)
+    begin
+    assume property(@(posedge clk) disable iff(!rst_n)
+        master[k].aw_ready |-> master[k].w_ready);
     end
 endgenerate
 
@@ -577,11 +631,11 @@ generate
     for (j = 0; j < NB_MASTER; j++)
     begin
         reset_valid_ar: assert property(@(posedge clk) disable iff(!rst_n)
-            $past(!rst_n) |-> master[j].ar_valid == 0);
+            $past(!rst_n) |-> (master[j].ar_valid == 0));
         reset_valid_aw: assert property(@(posedge clk) disable iff(!rst_n)
-            $past(!rst_n) |-> master[j].aw_valid == 0);
+            $past(!rst_n) |-> (master[j].aw_valid == 0));
         reset_valid_w: assert property(@(posedge clk) disable iff(!rst_n)
-            $past(!rst_n) |-> master[j].w_valid == 0);
+            $past(!rst_n) |-> (master[j].w_valid == 0));
     end
 endgenerate
 
@@ -590,9 +644,9 @@ generate
     for (i = 0; i < NB_SLAVE; i++)
     begin
         reset_valid_r: assert property(@(posedge clk) disable iff(!rst_n)
-            $past(!rst_n) |-> slave[i].r_valid == 0);
+            $past(!rst_n) |-> (slave[i].r_valid == 0));
         reset_valid_b: assert property(@(posedge clk) disable iff(!rst_n)
-            $past(!rst_n) |-> slave[i].b_valid == 0);
+            $past(!rst_n) |-> (slave[i].b_valid == 0));
     end
 endgenerate
 
@@ -610,11 +664,11 @@ generate
             valid_master_iface_aw: assert property(@(posedge clk) disable iff(!rst_n) 
             slave[j].aw_valid && slave[j].aw_addr < end_addr[k] && slave[j].aw_addr >= start_addr[k] |-> ##[0:SL_RT] master[k].aw_valid );
 
-            addr_master_iface_ar: assert property(@(posedge clk) disable iff(!rst_n)
-            slave[j].ar_valid && slave[j].ar_addr < end_addr[k] && slave[j].ar_addr >= start_addr[k] |-> ##[0:SL_RT] (master[k].ar_id == {j[0],slave[j].ar_id[AXI_ID_WIDTH-1:0]}) );
+            id_master_iface_ar: assert property(@(posedge clk) disable iff(!rst_n)
+            (slave[j].ar_valid && slave[j].ar_addr < end_addr[k] && slave[j].ar_addr >= start_addr[k]) |-> ##[0:SL_RT] (master[k].ar_id == {j[0],slave[j].ar_id[AXI_ID_WIDTH-1:0]}) );
             
-            addr_master_iface_aw: assert property(@(posedge clk) disable iff(!rst_n)
-            slave[j].aw_valid && slave[j].aw_addr < end_addr[k] && slave[j].aw_addr >= start_addr[k] |-> ##[0:SL_RT] (master[k].aw_id == {j[0],slave[j].aw_id[AXI_ID_WIDTH-1:0]}) );
+            id_master_iface_aw: assert property(@(posedge clk) disable iff(!rst_n)
+            (slave[j].aw_valid && slave[j].aw_addr < end_addr[k] && slave[j].aw_addr >= start_addr[k]) |-> ##[0:SL_RT] (master[k].aw_id == {j[0],slave[j].aw_id[AXI_ID_WIDTH-1:0]}) );
         end
     end
 endgenerate
