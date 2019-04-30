@@ -538,6 +538,11 @@ generate
         handshake_m_w_0: assume property(@(posedge clk) disable iff(!rst_n)
             slave[j].w_valid && !slave[j].w_ready |=> slave[j].w_valid);
 
+	
+	// Valid should fall after seeing a ready
+	handshake_m_ar_v: assume property(@(posedge clk) disable iff(!rst_n)
+		slave[j].ar_ready |=> !slave[j].ar_valid);
+
 
         // Addresses should remain stable
         const_m_ar_id: assume property(a_imp_stable(slave[j].ar_valid, slave[j].ar_id));
@@ -624,7 +629,6 @@ endgenerate
 // /_/ \_\___/___/___|_|_\ |_|
 //
 
-
 //Reset Assertions
 generate
     genvar j;
@@ -659,7 +663,7 @@ generate
         for (j = 0; j < NB_SLAVE; j++)
         begin
             valid_master_iface_ar: assert property(@(posedge clk) disable iff(!rst_n) 
-            slave[j].ar_valid && slave[j].ar_addr < end_addr[k] && slave[j].ar_addr >= start_addr[k] |-> ##[0:SL_RT] master[k].ar_valid );
+            slave[j].ar_valid && slave[j].ar_addr < end_addr[k] && slave[j].ar_addr >= start_addr[k] |-> ##[0:SL_RT+1] master[k].ar_valid );
             
             valid_master_iface_aw: assert property(@(posedge clk) disable iff(!rst_n) 
             slave[j].aw_valid && slave[j].aw_addr < end_addr[k] && slave[j].aw_addr >= start_addr[k] |-> ##[0:SL_RT] master[k].aw_valid );
@@ -673,9 +677,201 @@ generate
     end
 endgenerate
 
+//RR assertions
+//at every master node on the interface, we will keep track of the requests it has from the slave nodes in a bitmap manner.
+//for example at master node 1, if there are outstanding requests from slave ports 2 and 3, then pending_reqs[1][2] and pending_reqs[1][3] = 1.
+//most_recent_gnt[0] will be a onehot vector indicating which slave port had the last access to the master.
+//Need this for every channel -> Yes
+logic [NB_MASTER-1:0][NB_SLAVE-1:0] ar_pending_reqs;
+logic [NB_MASTER-1:0][NB_SLAVE-1:0] ar_most_recent_gnt;
+integer onehot_ar_gnt;
+
+logic [NB_MASTER-1:0][NB_SLAVE-1:0] aw_pending_reqs;
+logic [NB_MASTER-1:0][NB_SLAVE-1:0] aw_most_recent_gnt;
+integer onehot_aw_gnt;
+
+logic [NB_MASTER-1:0][NB_SLAVE-1:0] w_pending_reqs;
+logic [NB_MASTER-1:0][NB_SLAVE-1:0] w_most_recent_gnt;
+integer onehot_w_gnt;
 
 
+logic [NB_SLAVE-1:0][NB_MASTER-1:0] r_pending_reqs;
+logic [NB_SLAVE-1:0][NB_MASTER-1:0] r_most_recent_gnt;
+integer onehot_r_gnt;
 
+logic [NB_SLAVE-1:0][NB_MASTER-1:0] b_pending_reqs;
+logic [NB_SLAVE-1:0][NB_MASTER-1:0] b_most_recent_gnt;
+integer onehot_b_gnt;
+
+logic [NB_SLAVE-1:0] slave_port_serv;
+logic [NB_MASTER-1:0] master_port_serv;
+/*
+sequence addr_check(addr, master_port_id);
+   addr < end_addr[k] && addr >= start_addr[k];
+endsequence
+*/
+function [NB_SLAVE-1:0] find_next_slave; // function definition starts here
+	input [NB_SLAVE-1:0] pending_reqs;
+	input [NB_SLAVE-1:0] most_recent_gnt;
+	integer k;
+	logic temp = 0;
+	begin
+	for (k=0; k < NB_SLAVE; k = k +1) begin
+		temp = most_recent_gnt[k] | temp;
+		find_next_slave[k] = pending_reqs[k] & temp;
+		if (find_next_slave[k]) begin
+			return;
+		end
+	end
+	for (k=0; k < NB_SLAVE; k=k+1) begin
+		find_next_slave[k] = pending_reqs[k] & temp;
+		if (find_next_slave[k]) begin
+			return;
+		end
+	end
+	end
+endfunction
+
+function [NB_MASTER-1:0] find_next_master; // function definition starts here
+	input [NB_MASTER-1:0] pending_reqs;
+	input [NB_MASTER-1:0] most_recent_gnt;
+	integer k;
+	logic temp = 0;
+	begin
+	for (k=0; k < NB_MASTER; k = k +1) begin
+		temp = most_recent_gnt[k] | temp;
+		find_next_master[k] = pending_reqs[k] & temp;
+		if (find_next_master[k]) begin
+			return;
+		end
+	end
+	for (k=0; k < NB_MASTER; k=k+1) begin
+		find_next_master[k] = pending_reqs[k] & temp;
+		if (find_next_master[k]) begin
+			return;
+		end
+	end
+	end
+endfunction
+
+
+always @(posedge clk) begin
+	integer k;
+	integer i;
+	for (k=0; k<NB_MASTER; k++) begin
+		for (i=0; i<NB_SLAVE; i++) begin
+			if ($rose(s_slave_aw_valid[i]) && s_slave_aw_addr[i] < end_addr[k] && s_slave_aw_addr[i] >= start_addr[k]) begin
+				aw_pending_reqs[k][i] = 1;
+			end
+			if ($rose(s_slave_w_valid[i]) && s_slave_aw_addr[i] < end_addr[k] && s_slave_aw_addr[i] >= start_addr[k]) begin
+				w_pending_reqs[k][i] = 1;
+			end
+			if ($rose(s_slave_ar_valid[i]) && s_slave_ar_addr[i] < end_addr[k] && s_slave_ar_addr[i] >= start_addr[k]) begin
+				ar_pending_reqs[k][i] = 1;
+			end
+		end
+	
+		if (s_master_aw_ready[k]) begin
+			//find x (i.e. next slave port which will be serviced)
+			if (aw_pending_reqs[k]) begin
+				slave_port_serv = find_next_slave(aw_pending_reqs[k], aw_most_recent_gnt[k]);
+				aw_pending_reqs[k] = aw_pending_reqs[k] ^ slave_port_serv;
+				aw_most_recent_gnt[k] = slave_port_serv;
+				onehot_aw_gnt[k] = onehot_s_to_bin(aw_most_recent_gnt[k]);
+			end
+		end
+		if (s_master_w_ready[k]) begin
+			//find x (i.e. next slave port which will be serviced)
+			if (aw_pending_reqs[k]) begin
+				slave_port_serv = find_next_slave(aw_pending_reqs[k], aw_most_recent_gnt[k]);
+				aw_pending_reqs[k] = aw_pending_reqs[k] ^ slave_port_serv;
+				aw_most_recent_gnt[k] = slave_port_serv;
+				onehot_w_gnt[k] = onehot_s_to_bin(w_most_recent_gnt[k]);
+			end
+		end
+		if (s_master_ar_ready[k]) begin
+			//find x (i.e. next slave port which will be serviced)
+			if (aw_pending_reqs[k]) begin
+				slave_port_serv = find_next_slave(aw_pending_reqs[k], aw_most_recent_gnt[k]);
+				aw_pending_reqs[k] = aw_pending_reqs[k] ^ slave_port_serv;
+				aw_most_recent_gnt[k] = slave_port_serv;
+				onehot_ar_gnt[k] = onehot_s_to_bin(ar_most_recent_gnt[k]);
+			end
+		end				
+	end
+end
+
+function integer onehot_m_to_bin;	
+	input [NB_MASTER-1:0] invec;
+	integer i;
+	onehot_m_to_bin = 0;
+	for(i=0; i<NB_MASTER; i++) begin
+		if (invec[i]) onehot_m_to_bin = i;	
+	end
+endfunction
+
+function integer onehot_s_to_bin;	
+	input [NB_SLAVE-1:0] invec;
+	integer i;
+	onehot_s_to_bin = 0;
+	for(i=0; i<NB_SLAVE; i++) begin
+		if (invec[i]) begin
+			onehot_s_to_bin = i;
+			return;		
+		end
+	end
+endfunction
+
+generate
+	genvar k;
+	for(k=0; k<NB_MASTER; k=k+1) begin
+		RR_prop: assert property (@(posedge clk) disable iff (!rst_n)
+			master[k].aw_ready && master[k].aw_valid |-> master[k].aw_addr == s_slave_aw_addr[onehot_aw_gnt[k]]
+			/*ready |-> ID at this master port == ID at slave port X*/	);
+	end
+/*
+	for(k=0; k<NB_SLAVE; k=k+1) begin
+		assert property (@(posedge clk) disable iff (rst_n)
+			if req_gnt_signal |-> req_gnt_signal = (pending_req that comes after most_recent_gnt));
+	end*/
+endgenerate
+/*
+sequence id_check();
+
+endsequence
+	
+always @(posedge clk) begin
+	localparam k, i;
+	for (k=0; k<NB_SLAVE; k++) begin
+		for (i=0; i<NB_MASTER; i++) begin
+			if ($rose(master[i].r_valid) && id_check(master[i].b_id, k)) begin
+				r_pending_reqs[i][k] = 1;
+			end
+			if ($rose(master[i].b_valid) && id_check(master[i].r_id, k)) begin
+				w_pending_reqs[i][k] = 1;
+			end
+
+		end
+
+		if (slave[k].b_ready) begin
+			//find x (i.e. next slave port which will be serviced)
+			if (b_pending_reqs[k]) begin
+				master_port_serv = find_next_master(b_pending_reqs[k], b_most_recent_gnt[k]);
+				b_pending_reqs[k] = b_pending_reqs[k] ^ master_port_serv;
+				b_most_recent_gnt[k] = master_port_serv;
+			end
+		end
+		if (slave[k].r_ready) begin
+			//find x (i.e. next slave port which will be serviced)
+			if (r_pending_reqs[k]) begin
+				master_port_serv = find_next_master(r_pending_reqs[k], r_most_recent_gnt[k]);
+				r_pending_reqs[k] = r_pending_reqs[k] ^ master_port_serv;
+				r_most_recent_gnt[k] = master_port_serv;
+			end
+		end
+
+	end
+end*/
 
 
 endmodule
