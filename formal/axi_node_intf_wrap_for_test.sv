@@ -394,7 +394,7 @@ module axi_node_intf_wrap #(
 //
 
 //SLAVE RESPONSE TIME
-localparam SL_RT = 2;
+localparam SL_RT = 3;
 localparam MX_BURST = 2;
 
 //
@@ -421,7 +421,7 @@ always @(posedge clk) begin
         begin
             start_addr[i] = tmp_addr;
             tmp_addr = tmp_addr + mm_len;
-            end_addr[i] = tmp_addr;
+            end_addr[i] = tmp_addr-1;
         end
         mm_end = tmp_addr;
     end
@@ -535,6 +535,8 @@ generate
             slave[j].ar_valid && !slave[j].ar_ready |=> slave[j].ar_valid);
         handshake_m_aw_0: assume property(@(posedge clk) disable iff(!rst_n)
             slave[j].aw_valid && !slave[j].aw_ready |=> slave[j].aw_valid);
+        handshake_m_aw_1: assume property(@(posedge clk) disable iff(!rst_n)
+            slave[j].aw_valid && slave[j].aw_ready |=> $fell(slave[j].aw_valid));
         handshake_m_w_0: assume property(@(posedge clk) disable iff(!rst_n)
             slave[j].w_valid && !slave[j].w_ready |=> slave[j].w_valid);
 
@@ -590,12 +592,14 @@ generate
     assume property(@(posedge clk) disable iff (!rst_n)
         $rose(slave[j].aw_valid) |=> slave[j].w_valid);
 
-        //FIXME: THIS SEEMS INCORRECT
     assume property(@(posedge clk) disable iff (!rst_n)
-        slave[j].w_valid |-> ##[0:MX_BURST] (slave[j].w_last && !slave[j].w_valid));
+        slave[j].w_valid |-> ##[0:MX_BURST] slave[j].w_last ##1 !slave[j].w_valid);
 
     assume property(@(posedge clk) disable iff (!rst_n)
         !slave[j].w_valid |-> !slave[j].w_last);
+
+    assume property(@(posedge clk) disable iff (!rst_n)
+        slave[j].w_valid |-> slave[j].aw_valid);
 
     assume property(@(posedge clk) disable iff (!rst_n)
         $fell(slave[j].w_valid) |-> $past($rose(slave[j].w_last)));
@@ -604,12 +608,15 @@ generate
         slave[j].w_last |=> !slave[j].w_valid);
 
     assume property(@(posedge clk) disable iff(!rst_n)
-        slave[j].w_last |=> slave[j].b_valid);
+        slave[j].w_last |=> $rose(slave[j].b_valid));
+
+    assume property(@(posedge clk) disable iff(!rst_n)
+        slave[j].w_valid |-> !slave[j].b_valid);
 
     assume property(@(posedge clk) disable iff(!rst_n)
         slave[j].b_valid && !slave[j].b_ready |=> slave[j].b_valid);
-
     end
+
 endgenerate
 
 generate
