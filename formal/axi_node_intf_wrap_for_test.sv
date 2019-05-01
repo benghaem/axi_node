@@ -159,8 +159,8 @@ module axi_node_intf_wrap #(
       assign                        master[i].aw_region                    = s_master_aw_region[i];
       assign                        master[i].aw_user                      = s_master_aw_user[i];
       assign                        master[i].aw_qos                       = s_master_aw_qos[i];
-      assign                        master[i].aw_valid                     = s_master_aw_valid[i];
-      assign s_master_aw_ready[i] = master[i].aw_ready;
+      assign                        master[i].aw_valid                     = s_master_aw_valid[i]; //& rst_n; //fix bad reset behavior
+      assign s_master_aw_ready[i] = master[i].aw_ready & rst_n;
 
       assign                        master[i].ar_id[AXI_ID_WIDTH_INIT-1:0] = s_master_ar_id[i];
       assign                        master[i].ar_addr                      = s_master_ar_addr[i];
@@ -173,19 +173,19 @@ module axi_node_intf_wrap #(
       assign                        master[i].ar_region                    = s_master_ar_region[i];
       assign                        master[i].ar_user                      = s_master_ar_user[i];
       assign                        master[i].ar_qos                       = s_master_ar_qos[i];
-      assign                        master[i].ar_valid                     = s_master_ar_valid[i];
-      assign s_master_ar_ready[i] = master[i].ar_ready;
+      assign                        master[i].ar_valid                     = s_master_ar_valid[i]; //& rst_n; //fix bad reset behavior
+      assign s_master_ar_ready[i] = master[i].ar_ready & rst_n;
 
       assign                        master[i].w_data  = s_master_w_data[i];
       assign                        master[i].w_strb  = s_master_w_strb[i];
       assign                        master[i].w_last  = s_master_w_last[i];
       assign                        master[i].w_user  = s_master_w_user[i];
       assign                        master[i].w_valid = s_master_w_valid[i];
-      assign s_master_w_ready[i]  = master[i].w_ready;
+      assign s_master_w_ready[i]  = master[i].w_ready & rst_n;
 
       assign s_master_b_id[i]     = master[i].b_id[AXI_ID_WIDTH_INIT-1:0];
       assign s_master_b_resp[i]   = master[i].b_resp;
-      assign s_master_b_valid[i]  = master[i].b_valid;
+      assign s_master_b_valid[i]  = master[i].b_valid & rst_n;
       assign s_master_b_user[i]   = master[i].b_user;
       assign                        master[i].b_ready = s_master_b_ready[i];
 
@@ -194,7 +194,7 @@ module axi_node_intf_wrap #(
       assign s_master_r_resp[i]   = master[i].r_resp;
       assign s_master_r_last[i]   = master[i].r_last;
       assign s_master_r_user[i]   = master[i].r_user;
-      assign s_master_r_valid[i]  = master[i].r_valid;
+      assign s_master_r_valid[i]  = master[i].r_valid & rst_n;
       assign                        master[i].r_ready = s_master_r_ready[i];
 
       assign s_start_addr[0][i] = start_addr_i[i];
@@ -495,26 +495,19 @@ generate
         reset_ar: assume property(@(posedge clk) 
             $past(!rst_n) |-> $past(!master[k].ar_ready));
         reset_aw: assume property(@(posedge clk) 
-            $rose(rst_n) |-> $past(!master[k].aw_ready));
+            $past(!rst_n) |-> $past(!master[k].aw_ready));
         reset_w: assume property(@(posedge clk) 
             $rose(rst_n) |-> $past(!master[k].w_ready));
 
-        reset_valid_ar_a: assume property(@(posedge clk) 
-            $rose(rst_n) |-> $past(master[j].ar_valid == 0));
-        reset_valid_aw_a: assume property(@(posedge clk) 
-            $rose(rst_n) |-> $past(master[j].aw_valid == 0));
-        reset_valid_w_a: assume property(@(posedge clk) 
-            $rose(rst_n) |-> $past(master[j].w_valid == 0));
-
         reset_b_val: assume property(@(posedge clk)
-            $rose(rst_n) |-> $past(master[k].w_valid == 0));
+            $rose(rst_n) |-> $past(master[k].b_valid == 0));
         reset_r_val: assume property(@(posedge clk)
             $rose(rst_n) |-> $past(master[k].r_valid == 0));
 
         functional_slave_ar: assume property(@(posedge clk) disable iff(!rst_n)
-            $fell(master[k].ar_ready) |-> ##[0:SL_RT] $rose(master[k].ar_ready));
+            $fell(master[k].ar_ready) |-> ##[1:SL_RT] $rose(master[k].ar_ready));
         functional_slave_aw: assume property(@(posedge clk) disable iff(!rst_n)
-            $fell(master[k].aw_ready) |-> ##[0:SL_RT] $rose(master[k].aw_ready));
+            $fell(master[k].aw_ready) |-> ##[1:SL_RT] $rose(master[k].aw_ready));
     end
 endgenerate
 
@@ -547,10 +540,10 @@ generate
         handshake_m_w_0: assume property(@(posedge clk) disable iff(!rst_n)
             slave[j].w_valid && !slave[j].w_ready |=> slave[j].w_valid);
 
-	
-	// Valid should fall after seeing a ready
-	handshake_m_ar_v: assume property(@(posedge clk) disable iff(!rst_n)
-		slave[j].ar_ready && slave[j].ar_valid |=> $fell(slave[j].ar_valid));
+    
+    // Valid should fall after seeing a ready
+    handshake_m_ar_v: assume property(@(posedge clk) disable iff(!rst_n)
+        slave[j].ar_ready && slave[j].ar_valid |=> $fell(slave[j].ar_valid));
 
 
         // Addresses should remain stable
@@ -725,215 +718,314 @@ sequence addr_check(addr, master_port_id);
 endsequence
 */
 function [NB_SLAVE-1:0] find_next_slave; // function definition starts here
-	input [NB_SLAVE-1:0] pending_reqs;
-	input [NB_SLAVE-1:0] most_recent_gnt;
-	//find_next_slave = pending_reqs | most_recent_gnt;
-	integer k;
-	logic temp = 0;
-	begin
-	if (!|pending_reqs) begin
-		find_next_slave = most_recent_gnt;
-	end
-	else begin
-		for (k=0; k < NB_SLAVE; k = k +1) begin
-			find_next_slave[k] = pending_reqs[k] & temp;
-			temp = temp ^ find_next_slave[k];
-			temp = most_recent_gnt[k] | temp;
-		end
-		if(temp) begin
-		for (k=0; k < NB_SLAVE; k=k+1) begin
-			find_next_slave[k] = pending_reqs[k] & temp;
-			temp = temp ^ find_next_slave[k];
-		end
-		end
-	end
-	end
+    input [NB_SLAVE-1:0] pending_reqs;
+    input [NB_SLAVE-1:0] most_recent_gnt;
+    //find_next_slave = pending_reqs | most_recent_gnt;
+    integer k;
+    logic temp = 0;
+    begin
+    if (!|pending_reqs) begin
+        find_next_slave = most_recent_gnt;
+    end
+    else begin
+        for (k=0; k < NB_SLAVE; k = k +1) begin
+            find_next_slave[k] = pending_reqs[k] & temp;
+            temp = temp ^ find_next_slave[k];
+            temp = most_recent_gnt[k] | temp;
+        end
+        if(temp) begin
+        for (k=0; k < NB_SLAVE; k=k+1) begin
+            find_next_slave[k] = pending_reqs[k] & temp;
+            temp = temp ^ find_next_slave[k];
+        end
+        end
+    end
+    end
 endfunction
 
 function [NB_MASTER-1:0] find_next_master; // function definition starts here
-	input [NB_MASTER-1:0] pending_reqs;
-	input [NB_MASTER-1:0] most_recent_gnt;
-	integer k;
-	logic [NB_MASTER-1:0 ]temp = 0;
-	begin
-	for (k=0; k < NB_MASTER; k = k +1) begin
-		temp = most_recent_gnt[k] | temp;
-		find_next_master[k] = pending_reqs[k] && temp;
-		if (find_next_master[k]) begin
-			return;
-		end
-	end
-	for (k=0; k < NB_MASTER; k=k+1) begin
-		find_next_master[k] = pending_reqs[k] && temp;
-		if (find_next_master[k]) begin
-			return;
-		end
-	end
-	end
+    input [NB_MASTER-1:0] pending_reqs;
+    input [NB_MASTER-1:0] most_recent_gnt;
+    integer k;
+    logic [NB_MASTER-1:0 ]temp = 0;
+    begin
+    for (k=0; k < NB_MASTER; k = k +1) begin
+        temp = most_recent_gnt[k] | temp;
+        find_next_master[k] = pending_reqs[k] && temp;
+        if (find_next_master[k]) begin
+            return;
+        end
+    end
+    for (k=0; k < NB_MASTER; k=k+1) begin
+        find_next_master[k] = pending_reqs[k] && temp;
+        if (find_next_master[k]) begin
+            return;
+        end
+    end
+    end
 endfunction
 
 generate
-	genvar i,k;
-	for (k=0; k<NB_MASTER; k++) begin
-		for (i=0; i<NB_SLAVE; i++) begin
-/*			assign ar_pending_reqs[k][i] = ((s_slave_ar_valid[i]) && s_slave_ar_addr[i] <= end_addr[k] && s_slave_ar_addr[i] >= start_addr[k]);	*/
-			
-		end
-	end
+    genvar i,k;
+    for (k=0; k<NB_MASTER; k++) begin
+        for (i=0; i<NB_SLAVE; i++) begin
+/*          assign ar_pending_reqs[k][i] = ((s_slave_ar_valid[i]) && s_slave_ar_addr[i] <= end_addr[k] && s_slave_ar_addr[i] >= start_addr[k]); */
+            
+        end
+    end
 endgenerate
 
 logic [NB_SLAVE-1:0][AXI_ADDR_WIDTH-1:0]    prev_slave_ar_addr;
-logic [NB_SLAVE-1:0]			    prev_slave_ar_valid;
+logic [NB_SLAVE-1:0]                prev_slave_ar_valid;
 logic [NB_SLAVE-1:0][AXI_ADDR_WIDTH-1:0]    prev_slave_aw_addr;
-logic [NB_SLAVE-1:0]			    prev_slave_aw_valid;
+logic [NB_SLAVE-1:0]                prev_slave_aw_valid;
 
 always @(posedge clk) begin
-	integer i;	
-	for(i=0; i<NB_SLAVE; i=i+1) begin
-		prev_slave_ar_addr[i] <= s_slave_ar_addr[i];	
-		prev_slave_ar_valid[i] <= s_slave_ar_valid[i];
-		prev_slave_aw_addr[i] <= s_slave_aw_addr[i];	
-		prev_slave_aw_valid[i] <= s_slave_aw_valid[i];
-	end
+    integer i;  
+    for(i=0; i<NB_SLAVE; i=i+1) begin
+        prev_slave_ar_addr[i] <= s_slave_ar_addr[i];    
+        prev_slave_ar_valid[i] <= s_slave_ar_valid[i];
+        prev_slave_aw_addr[i] <= s_slave_aw_addr[i];    
+        prev_slave_aw_valid[i] <= s_slave_aw_valid[i];
+    end
 end
 
 
-always @(posedge clk) begin
-	integer k;
-	integer i;
-	if(!rst_n) begin
-		for (k=0; k<NB_MASTER; k++) begin
-			for (i=0; i<NB_SLAVE; i++) begin
-				aw_pending_reqs[k][i] = 0;
-				w_pending_reqs[k][i] = 0;
-				ar_pending_reqs[k][i] = 0;
-				aw_most_recent_gnt[k][i] = 0;
-				w_most_recent_gnt[k][i] = 0;
-				ar_most_recent_gnt[k][i] = 0;
-			end
-			aw_most_recent_gnt[k][NB_SLAVE-1] = 1;
-			w_most_recent_gnt[k][NB_SLAVE-1] = 1;
-			ar_most_recent_gnt[k][NB_SLAVE-1] = 1;		
-			onehot_aw_gnt[k] = NB_SLAVE-1;
-			onehot_w_gnt[k] = NB_SLAVE-1;
-			onehot_ar_gnt[k] = NB_SLAVE-1;	
-		end	
-	end
-	else begin
-	for (k=0; k<NB_MASTER; k++) begin
-		for (i=0; i<NB_SLAVE; i++) begin
-			if ((s_slave_aw_valid[i]) && s_slave_aw_addr[i] <= end_addr[k] && s_slave_aw_addr[i] >= start_addr[k]) begin
-				aw_pending_reqs[k][i] = 1;
-			end
-			if ((s_slave_w_valid[i]) && s_slave_aw_addr[i] <= end_addr[k] && s_slave_aw_addr[i] >= start_addr[k]) begin
-				w_pending_reqs[k][i] = 1;
-			end
-			if ((s_slave_ar_valid[i]) && s_slave_ar_addr[i] <= end_addr[k] && s_slave_ar_addr[i] >= start_addr[k]) begin
-				ar_pending_reqs[k][i] = 1;
-			end
-			/*ar_pending_reqs[k][i] = ((s_slave_ar_valid[i]) && s_slave_ar_addr[i] < end_addr[k] && s_slave_ar_addr[i] >= start_addr[k]);*/
-		end
-	
-		if (s_master_aw_ready[k]) begin
-			//find x (i.e. next slave port which will be serviced)
-			if (|(aw_pending_reqs[k])) begin
-				aw_most_recent_gnt[k] = find_next_slave(aw_pending_reqs[k], aw_most_recent_gnt[k]);
-				aw_pending_reqs[k] = aw_pending_reqs[k] ^ aw_most_recent_gnt[k];
-				onehot_aw_gnt[k] = onehot_s_to_bin(aw_most_recent_gnt[k]);
-			end
-		end
-		if (s_master_w_ready[k]) begin
-			//find x (i.e. next slave port which will be serviced)
-			if (|(w_pending_reqs[k])) begin
-				w_most_recent_gnt[k] = find_next_slave(w_pending_reqs[k], w_most_recent_gnt[k]);
-				w_pending_reqs[k] = w_pending_reqs[k] ^ w_most_recent_gnt[k];
-				onehot_w_gnt[k] = onehot_s_to_bin(w_most_recent_gnt[k]);
-			end
-		end
-		if (s_master_ar_ready[k]) begin
-			//find x (i.e. next slave port which will be serviced)
-			if (|(ar_pending_reqs[k])) begin
-				ar_most_recent_gnt[k] = find_next_slave(ar_pending_reqs[k], ar_most_recent_gnt[k]);
-				ar_pending_reqs[k] = ar_pending_reqs[k] ^ ar_most_recent_gnt[k];
-				onehot_ar_gnt[k] = onehot_s_to_bin(ar_most_recent_gnt[k]);
-			end
-		end				
-	end
-	end
-end
+function [NB_MASTER-1:0][NB_SLAVE-1:0] gen_pending; // function definition starts here
+    input [NB_SLAVE-1:0] gp_aw_valid;
+    input [NB_SLAVE-1:0][AXI_ADDR_WIDTH-1:0] gp_aw_addr;
+    integer k, i;
+    begin
+        for (k=0; k<NB_MASTER; k++) begin
+            for (i=0; i<NB_SLAVE; i++) begin
 
-function integer onehot_m_to_bin;	
-	input [NB_MASTER-1:0] invec;
-	integer i;
-	onehot_m_to_bin = 0;
-	for(i=0; i<NB_MASTER; i++) begin
-		if (invec[i] == 1'b1) onehot_m_to_bin = i;	
-	end
+                if ((gp_aw_valid[i]) && gp_aw_addr[i] <= end_addr[k] && gp_aw_addr[i] >= start_addr[k]) begin
+                    gen_pending[k][i] = 1;
+                end
+                else begin
+                    gen_pending[k][i] = 0;
+                end
+
+            end
+        end
+    end
 endfunction
 
-function integer onehot_s_to_bin;	
-	input [NB_SLAVE-1:0] invec;
-	integer i;
-	onehot_s_to_bin = 0;
-	for(i=0; i<NB_SLAVE; i++) begin
-		if (invec[i] == 1'b1) onehot_s_to_bin = i;
-	end
+function [NB_MASTER-1:0][NB_SLAVE-1:0] gen_new_grant; // function definition starts here
+    input [NB_MASTER-1:0][NB_SLAVE-1:0] gmr_curr_grant;
+    input [NB_MASTER-1:0][NB_SLAVE-1:0] gmr_pending;
+    input [NB_MASTER-1:0] gmr_ready;
+    integer k;
+    begin
+        for (k=0; k<NB_MASTER; k++) begin
+            if (gmr_ready[k]) begin
+                //find x (i.e. next slave port which will be serviced)
+                if (|(gmr_pending[k])) begin
+                    gen_new_grant[k] = find_next_slave(gmr_pending[k], gmr_curr_grant[k]);
+                end 
+                else begin
+                    gen_new_grant[k] = gmr_curr_grant[k];
+                end
+            end
+            else begin
+                    gen_new_grant[k] = gmr_curr_grant[k];
+            end
+        end
+    end
+endfunction
+
+typedef integer onehot_arr[NB_MASTER];
+
+function [NB_MASTER-1:0][NB_SLAVE-1:0] gen_final_pending; // function definition starts here
+    input [NB_MASTER-1:0][NB_SLAVE-1:0] gfp_new_grant;
+    input [NB_MASTER-1:0][NB_SLAVE-1:0] gfp_pending;
+    integer k;
+    begin
+        for (k=0; k<NB_MASTER; k++) begin
+            if(s_master_aw_ready[k]) begin
+                gen_final_pending[k] = gfp_pending[k] ^ gfp_new_grant[k];
+            end
+        end
+    end
+endfunction
+
+
+function onehot_arr gen_onehot; // function definition starts here
+    input [NB_MASTER-1:0][NB_SLAVE-1:0] go_new_grant;
+    integer k;
+    begin
+        for (k=0; k<NB_MASTER; k++) begin
+            gen_onehot[k] = onehot_s_to_bin(go_new_grant[k]);
+        end
+    end
+endfunction
+
+localparam MD_AR = 0;
+localparam MD_AW = 1;
+localparam MD_W = 2;
+
+logic [2:0][NB_MASTER-1:0][NB_SLAVE-1:0] last_pending;
+logic [2:0][NB_MASTER-1:0][NB_SLAVE-1:0] inter_pending;
+logic [2:0][NB_MASTER-1:0][NB_SLAVE-1:0] final_pending;
+
+logic [2:0][NB_MASTER-1:0][NB_SLAVE-1:0] last_grant;
+logic [2:0][NB_MASTER-1:0][NB_SLAVE-1:0] new_grant;
+integer cmb_onehot_aw_gnt[NB_MASTER];
+integer cmb_onehot_w_gnt[NB_MASTER];
+integer cmb_onehot_ar_gnt[NB_MASTER];
+
+assign inter_pending[MD_AW] = gen_pending(s_slave_aw_valid, s_slave_aw_addr);
+assign new_grant[MD_AW] = gen_new_grant(last_grant[MD_AW], inter_pending[MD_AW], s_master_aw_ready);
+//assign final_pending[MD_AW] = gen_final_pending(new_grant[MD_AW], inter_pending[MD_AW]);
+
+assign inter_pending[MD_AR] = gen_pending(s_slave_ar_valid, s_slave_ar_addr);
+assign new_grant[MD_AR] = gen_new_grant(last_grant[MD_AR], inter_pending[MD_AR], s_master_ar_ready);
+//assign final_pending[MD_AR] = gen_final_pending(new_grant[MD_AR], inter_pending[MD_AR]);
+
+assign inter_pending[MD_W] = gen_pending(s_slave_w_valid, s_slave_aw_addr);
+assign new_grant[MD_W] = gen_new_grant(last_grant[MD_W], inter_pending[MD_W], s_master_w_ready);
+//assign final_pending[MD_W] = gen_final_pending(new_grant[MD_W], inter_pending[MD_W]);
+
+assign cmb_onehot_aw_gnt = gen_onehot(new_grant[MD_AW]);
+assign cmb_onehot_ar_gnt = gen_onehot(new_grant[MD_AR]);
+assign cmb_onehot_w_gnt = gen_onehot(new_grant[MD_W]);
+
+always @(posedge clk) begin
+    integer i, k, md;
+    if (!rst_n) begin
+        for (md = 0; md < 3; md++) begin
+            for (k=0; k<NB_MASTER; k++) begin
+                for (i=0; i<NB_SLAVE; i++) begin
+                    last_pending[md][k][i] = 0;
+                    last_grant[md][k][i] = 0;
+                end
+                last_grant[md][k][NB_SLAVE-1] = 1;
+            end
+        end
+    end
+    else begin
+        //last_pending = final_pending;
+        last_grant = new_grant;
+    end 
+end
+
+/*
+always @(posedge clk) begin
+    integer k;
+    integer i;
+    if(!rst_n) begin
+        for (k=0; k<NB_MASTER; k++) begin
+            for (i=0; i<NB_SLAVE; i++) begin
+                aw_pending_reqs[k][i] = 0;
+                w_pending_reqs[k][i] = 0;
+                ar_pending_reqs[k][i] = 0;
+                aw_most_recent_gnt[k][i] = 0;
+                w_most_recent_gnt[k][i] = 0;
+                ar_most_recent_gnt[k][i] = 0;
+            end
+            aw_most_recent_gnt[k][NB_SLAVE-1] = 1;
+            w_most_recent_gnt[k][NB_SLAVE-1] = 1;
+            ar_most_recent_gnt[k][NB_SLAVE-1] = 1;      
+            onehot_aw_gnt[k] = NB_SLAVE-1;
+            onehot_w_gnt[k] = NB_SLAVE-1;
+            onehot_ar_gnt[k] = NB_SLAVE-1;  
+        end 
+    end
+    else begin
+    
+        if (s_master_w_ready[k]) begin
+            //find x (i.e. next slave port which will be serviced)
+            if (|(w_pending_reqs[k])) begin
+                w_most_recent_gnt[k] = find_next_slave(w_pending_reqs[k], w_most_recent_gnt[k]);
+                w_pending_reqs[k] = w_pending_reqs[k] ^ w_most_recent_gnt[k];
+                onehot_w_gnt[k] = onehot_s_to_bin(w_most_recent_gnt[k]);
+            end
+        end
+        if (s_master_ar_ready[k]) begin
+            //find x (i.e. next slave port which will be serviced)
+            if (|(ar_pending_reqs[k])) begin
+                ar_most_recent_gnt[k] = find_next_slave(ar_pending_reqs[k], ar_most_recent_gnt[k]);
+                ar_pending_reqs[k] = ar_pending_reqs[k] ^ ar_most_recent_gnt[k];
+                onehot_ar_gnt[k] = onehot_s_to_bin(ar_most_recent_gnt[k]);
+            end
+        end             
+    end
+    end
+end
+
+*/
+function integer onehot_m_to_bin;   
+    input [NB_MASTER-1:0] invec;
+    integer i;
+    onehot_m_to_bin = 0;
+    for(i=0; i<NB_MASTER; i++) begin
+        if (invec[i] == 1'b1) onehot_m_to_bin = i;  
+    end
+endfunction
+
+function integer onehot_s_to_bin;   
+    input [NB_SLAVE-1:0] invec;
+    integer i;
+    onehot_s_to_bin = 0;
+    for(i=0; i<NB_SLAVE; i++) begin
+        if (invec[i] == 1'b1) onehot_s_to_bin = i;
+    end
 endfunction
 
 generate
-	genvar k;
-	for(k=0; k<NB_MASTER; k=k+1) begin
-		RR_prop_aw: assert property (@(posedge clk) disable iff (!rst_n)
-			$past(master[k].aw_ready) && $past(master[k].aw_valid) |-> 
-				($past(master[k].aw_addr) == prev_slave_aw_addr[onehot_aw_gnt[k]]) && prev_slave_aw_valid[onehot_aw_gnt[k]]);
+    genvar k;
+    for(k=0; k<NB_MASTER; k=k+1) begin
+        RR_prop_aw: assert property (@(posedge clk) disable iff (!rst_n)
+            (s_master_aw_valid[k]) && (s_master_aw_ready[k]) |-> 
+                (master[k].aw_addr == s_slave_aw_addr[cmb_onehot_aw_gnt[k]]) && s_slave_aw_valid[cmb_onehot_aw_gnt[k]]);
 
-		RR_prop_ar: assert property (@(posedge clk) disable iff (!rst_n)
-			$past(master[k].ar_ready) && $past(master[k].ar_valid) |-> 
-				($past(master[k].ar_addr) == prev_slave_ar_addr[onehot_ar_gnt[k]]) && prev_slave_ar_valid[onehot_ar_gnt[k]]);
+        RR_prop_ar: assert property (@(posedge clk) disable iff (!rst_n)
+            master[k].ar_ready && master[k].ar_valid |-> 
+                (master[k].ar_addr == s_slave_ar_addr[cmb_onehot_ar_gnt[k]]) && s_slave_ar_valid[cmb_onehot_ar_gnt[k]]);
 
-	end
+    end
 /*
-	for(k=0; k<NB_SLAVE; k=k+1) begin
-		assert property (@(posedge clk) disable iff (rst_n)
-			if req_gnt_signal |-> req_gnt_signal = (pending_req that comes after most_recent_gnt));
-	end*/
+    for(k=0; k<NB_SLAVE; k=k+1) begin
+        assert property (@(posedge clk) disable iff (rst_n)
+            if req_gnt_signal |-> req_gnt_signal = (pending_req that comes after most_recent_gnt));
+    end*/
 endgenerate
 /*
 sequence id_check();
 
 endsequence
-	
+    
 always @(posedge clk) begin
-	localparam k, i;
-	for (k=0; k<NB_SLAVE; k++) begin
-		for (i=0; i<NB_MASTER; i++) begin
-			if ($rose(master[i].r_valid) && id_check(master[i].b_id, k)) begin
-				r_pending_reqs[i][k] = 1;
-			end
-			if ($rose(master[i].b_valid) && id_check(master[i].r_id, k)) begin
-				w_pending_reqs[i][k] = 1;
-			end
+    localparam k, i;
+    for (k=0; k<NB_SLAVE; k++) begin
+        for (i=0; i<NB_MASTER; i++) begin
+            if ($rose(master[i].r_valid) && id_check(master[i].b_id, k)) begin
+                r_pending_reqs[i][k] = 1;
+            end
+            if ($rose(master[i].b_valid) && id_check(master[i].r_id, k)) begin
+                w_pending_reqs[i][k] = 1;
+            end
 
-		end
+        end
 
-		if (slave[k].b_ready) begin
-			//find x (i.e. next slave port which will be serviced)
-			if (b_pending_reqs[k]) begin
-				master_port_serv = find_next_master(b_pending_reqs[k], b_most_recent_gnt[k]);
-				b_pending_reqs[k] = b_pending_reqs[k] ^ master_port_serv;
-				b_most_recent_gnt[k] = master_port_serv;
-			end
-		end
-		if (slave[k].r_ready) begin
-			//find x (i.e. next slave port which will be serviced)
-			if (r_pending_reqs[k]) begin
-				master_port_serv = find_next_master(r_pending_reqs[k], r_most_recent_gnt[k]);
-				r_pending_reqs[k] = r_pending_reqs[k] ^ master_port_serv;
-				r_most_recent_gnt[k] = master_port_serv;
-			end
-		end
+        if (slave[k].b_ready) begin
+            //find x (i.e. next slave port which will be serviced)
+            if (b_pending_reqs[k]) begin
+                master_port_serv = find_next_master(b_pending_reqs[k], b_most_recent_gnt[k]);
+                b_pending_reqs[k] = b_pending_reqs[k] ^ master_port_serv;
+                b_most_recent_gnt[k] = master_port_serv;
+            end
+        end
+        if (slave[k].r_ready) begin
+            //find x (i.e. next slave port which will be serviced)
+            if (r_pending_reqs[k]) begin
+                master_port_serv = find_next_master(r_pending_reqs[k], r_most_recent_gnt[k]);
+                r_pending_reqs[k] = r_pending_reqs[k] ^ master_port_serv;
+                r_most_recent_gnt[k] = master_port_serv;
+            end
+        end
 
-	end
+    end
 end*/
 
 

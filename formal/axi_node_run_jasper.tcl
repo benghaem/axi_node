@@ -32,7 +32,8 @@ elaborate -top axi_node_intf_wrap
 
 # Setup clock and reset
 clock clk
-reset -expression !rst_n
+#reset -init_state reset_values.txt
+reset -expression ~rst_n
 
 #run
 prove -bg -all
