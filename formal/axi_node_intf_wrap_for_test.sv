@@ -979,9 +979,19 @@ generate
             (s_master_aw_valid[k]) && (s_master_aw_ready[k]) |-> 
                 (master[k].aw_addr == s_slave_aw_addr[cmb_onehot_aw_gnt[k]]) && s_slave_aw_valid[cmb_onehot_aw_gnt[k]]);
 
+        RR_prop_aw_id: assert property (@(posedge clk) disable iff (!rst_n)
+            (s_master_aw_valid[k]) && (s_master_aw_ready[k]) |-> 
+                master[k].aw_id == {cmb_onehot_aw_gnt[k][0],s_slave_aw_id[cmb_onehot_aw_gnt[k]][AXI_ID_WIDTH-1:0]});
+
         RR_prop_ar: assert property (@(posedge clk) disable iff (!rst_n)
             master[k].ar_ready && master[k].ar_valid |-> 
                 (master[k].ar_addr == s_slave_ar_addr[cmb_onehot_ar_gnt[k]]) && s_slave_ar_valid[cmb_onehot_ar_gnt[k]]);
+
+
+        RR_prop_ar_id: assert property (@(posedge clk) disable iff (!rst_n)
+            (s_master_ar_valid[k]) && (s_master_ar_ready[k]) |-> 
+                master[k].ar_id == {cmb_onehot_ar_gnt[k][0],s_slave_ar_id[cmb_onehot_ar_gnt[k]][AXI_ID_WIDTH-1:0]});
+
 
     end
 /*
