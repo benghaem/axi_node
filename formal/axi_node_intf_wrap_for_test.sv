@@ -492,22 +492,36 @@ generate
     genvar k;
     for (k = 0; k < NB_MASTER; k++)
     begin
-        reset_ar: assume property(@(posedge clk) 
-            $past(!rst_n) |-> $past(!master[k].ar_ready));
-        reset_aw: assume property(@(posedge clk) 
-            $past(!rst_n) |-> $past(!master[k].aw_ready));
-        reset_w: assume property(@(posedge clk) 
-            $rose(rst_n) |-> $past(!master[k].w_ready));
-
         reset_b_val: assume property(@(posedge clk)
-            $rose(rst_n) |-> $past(master[k].b_valid == 0));
+            $rose(rst_n) |-> !master[k].b_valid);
         reset_r_val: assume property(@(posedge clk)
-            $rose(rst_n) |-> $past(master[k].r_valid == 0));
+            $rose(rst_n) |-> !master[k].r_valid);
+
+        correct_ar_ready_start: assume property(@(posedge clk) disable iff(!rst_n)
+            $rose(rst_n) |-> ##[1:SL_RT-1] $rose(master[k].ar_ready));
+        correct_aw_ready_start: assume property(@(posedge clk) disable iff(!rst_n)
+            $rose(rst_n) |-> ##[1:SL_RT-1] $rose(master[k].aw_ready));
 
         functional_slave_ar: assume property(@(posedge clk) disable iff(!rst_n)
-            $fell(master[k].ar_ready) |-> ##[1:SL_RT] $rose(master[k].ar_ready));
+            $fell(master[k].ar_ready) |-> ##[1:SL_RT-1] $rose(master[k].ar_ready));
         functional_slave_aw: assume property(@(posedge clk) disable iff(!rst_n)
-            $fell(master[k].aw_ready) |-> ##[1:SL_RT] $rose(master[k].aw_ready));
+            $fell(master[k].aw_ready) |-> ##[1:SL_RT-1] $rose(master[k].aw_ready));
+
+        handshake_s_b_0: assume property(@(posedge clk) disable iff(!rst_n)
+            master[k].b_valid && !master[k].b_ready |=> master[k].b_valid);
+
+        handshake_s_r_0: assume property(@(posedge clk) disable iff(!rst_n)
+            master[k].r_valid && !master[k].r_ready |=> master[k].r_valid);
+
+        handshake_s_b_v: assume property(@(posedge clk) disable iff(!rst_n)
+            master[k].b_ready && master[k].b_valid |=> $fell(master[k].b_valid));
+        handshake_s_r_v: assume property(@(posedge clk) disable iff(!rst_n)
+            master[k].r_valid && master[k].r_ready |=> $fell(master[k].r_valid));
+
+        const_s_b_id: assume property(a_imp_stable(master[k].b_valid, master[k].b_id));
+        const_s_r_id: assume property(a_imp_stable(master[k].r_valid, master[k].r_id));
+
+       
     end
 endgenerate
 
@@ -515,19 +529,19 @@ generate
     genvar j;
     for (j = 0; j < NB_SLAVE; j++)
     begin
+        
+        reset_ar_val: assume property(@(posedge clk)
+            $rose(rst_n) |-> !slave[j].ar_valid);
+        reset_aw_val: assume property(@(posedge clk)
+            $rose(rst_n) |-> !slave[j].aw_valid);
 
-        reset_ar_val: assume property(@(posedge clk) disable iff(!rst_n)
-            $past(!rst_n) |-> $past(!slave[j].ar_valid));
-        reset_aw_val: assume property(@(posedge clk) disable iff(!rst_n)
-            $past(!rst_n) |-> $past(!slave[j].aw_valid));
-        reset_w_val: assume property(@(posedge clk) disable iff(!rst_n)
-            $past(!rst_n) |-> $past(!slave[j].w_valid));
+        //always on  master bw_channel
+        correct_r_ready_start: assume property(@(posedge clk) disable iff(!rst_n)
+            slave[j].r_ready == 1);
+        correct_b_ready_start: assume property(@(posedge clk) disable iff(!rst_n)
+            slave[j].b_ready == 1);
 
 
-        reset_b: assume property(@(posedge clk)
-            $rose(rst_n) |-> $past(slave[j].w_ready == 0));
-        reset_r: assume property(@(posedge clk)
-            $rose(rst_n) |-> $past(slave[j].r_ready == 0));
 
 
         // Valid should remain high until the cycle after ready is asserted
@@ -535,16 +549,16 @@ generate
             slave[j].ar_valid && !slave[j].ar_ready |=> slave[j].ar_valid);
         handshake_m_aw_0: assume property(@(posedge clk) disable iff(!rst_n)
             slave[j].aw_valid && !slave[j].aw_ready |=> slave[j].aw_valid);
-        handshake_m_aw_1: assume property(@(posedge clk) disable iff(!rst_n)
-            slave[j].aw_valid && slave[j].aw_ready |=> $fell(slave[j].aw_valid));
+        
         handshake_m_w_0: assume property(@(posedge clk) disable iff(!rst_n)
             slave[j].w_valid && !slave[j].w_ready |=> slave[j].w_valid);
 
-    
-    // Valid should fall after seeing a ready
-    handshake_m_ar_v: assume property(@(posedge clk) disable iff(!rst_n)
-        slave[j].ar_ready && slave[j].ar_valid |=> $fell(slave[j].ar_valid));
 
+        // Valid should fall after seeing a ready
+        handshake_m_ar_v: assume property(@(posedge clk) disable iff(!rst_n)
+            slave[j].ar_ready && slave[j].ar_valid |=> $fell(slave[j].ar_valid));
+        handshake_m_aw_1: assume property(@(posedge clk) disable iff(!rst_n)
+            slave[j].aw_valid && slave[j].aw_ready |=> $fell(slave[j].aw_valid));
 
         // Addresses should remain stable
         const_m_ar_id: assume property(a_imp_stable(slave[j].ar_valid, slave[j].ar_id));
@@ -577,6 +591,8 @@ generate
 endgenerate
 
 
+
+
 //
 //  ___ _   _ ___  ___ _____    ___ _____ ___ _
 // | _ ) | | | _ \/ __|_   _|  / __|_   _| _ \ |
@@ -584,25 +600,48 @@ endgenerate
 // |___/\___/|_|_\|___/ |_|    \___| |_| |_|_\____|
 //
 //
+
+logic [NB_SLAVE-1:0] outstanding_write;
+
+always @(posedge clk) begin
+    integer i;
+    for (i = 0; i < NB_SLAVE; i++)  begin
+        if (!rst_n) begin
+            outstanding_write[i] = 0;
+        end
+        else begin
+            if (!s_slave_w_last[i]) begin
+                outstanding_write[i] = s_slave_aw_valid[i] | outstanding_write[i];
+            end
+            else begin
+                outstanding_write[i] = 0;
+            end
+        end
+    end
+
+end
+
 generate
     genvar j;
     for (j = 0; j < NB_SLAVE; j++)
     begin
 
-    assume property(@(posedge clk) disable iff (!rst_n)
-        $rose(slave[j].aw_valid) |=> slave[j].w_valid);
+    assume property(@(posedge clk) disable iff(!rst_n)
+        outstanding_write[j] && !slave[j].aw_valid |=> !slave[j].aw_valid);
 
     assume property(@(posedge clk) disable iff (!rst_n)
-        slave[j].w_valid |-> ##[0:MX_BURST] slave[j].w_last ##1 !slave[j].w_valid);
+        slave[j].aw_valid |-> ##[0:SL_RT] slave[j].w_valid);
+
+    assume property(@(posedge clk) disable iff (!rst_n)
+        slave[j].w_valid |-> ##[0:MX_BURST] (slave[j].w_last && slave[j].w_valid) ##1 (!slave[j].w_valid));
 
     assume property(@(posedge clk) disable iff (!rst_n)
         !slave[j].w_valid |-> !slave[j].w_last);
 
+        /*
     assume property(@(posedge clk) disable iff (!rst_n)
         slave[j].w_valid |-> slave[j].aw_valid);
-
-    assume property(@(posedge clk) disable iff (!rst_n)
-        $fell(slave[j].w_valid) |-> $past($rose(slave[j].w_last)));
+        */
 
     assume property(@(posedge clk) disable iff (!rst_n)
         slave[j].w_last |=> !slave[j].w_valid);
@@ -612,9 +651,6 @@ generate
 
     assume property(@(posedge clk) disable iff(!rst_n)
         slave[j].w_valid |-> !slave[j].b_valid);
-
-    assume property(@(posedge clk) disable iff(!rst_n)
-        slave[j].b_valid && !slave[j].b_ready |=> slave[j].b_valid);
     end
 
 endgenerate
@@ -661,7 +697,28 @@ generate
     end
 endgenerate
 
+generate
+    genvar j, k, q;
 
+    for (k = 0; k < NB_SLAVE; k++)
+    begin
+        for (q = 0; q < NB_SLAVE; q++)
+        begin
+            //Hacky safety that only works for our given mmap
+            if ((k != q)) begin
+                safe_ar: assert property(@(posedge clk) disable iff (!rst_n)
+                (slave[k].ar_addr >> 12) == (slave[q].ar_addr >> 12) |-> !(slave[k].ar_ready && slave[q].ar_ready));
+
+                safe_aw: assert property(@(posedge clk) disable iff (!rst_n)
+                (slave[k].aw_addr >> 12) == (slave[q].aw_addr >> 12) |-> !(slave[k].aw_ready && slave[q].aw_ready));
+            end
+        end
+    end
+endgenerate
+
+
+
+//Liveness w/o ordering
 generate
     genvar j, k;
 
@@ -669,18 +726,33 @@ generate
     begin
         for (j = 0; j < NB_SLAVE; j++)
         begin
-            valid_master_iface_ar: assert property(@(posedge clk) disable iff(!rst_n) 
-            slave[j].ar_valid && slave[j].ar_addr < end_addr[k] && slave[j].ar_addr >= start_addr[k] |-> ##[0:SL_RT+1] master[k].ar_valid );
-            
-            valid_master_iface_aw: assert property(@(posedge clk) disable iff(!rst_n) 
-            slave[j].aw_valid && slave[j].aw_addr < end_addr[k] && slave[j].aw_addr >= start_addr[k] |-> ##[0:SL_RT] master[k].aw_valid );
 
-            id_master_iface_ar: assert property(@(posedge clk) disable iff(!rst_n)
-            (slave[j].ar_valid && slave[j].ar_addr < end_addr[k] && slave[j].ar_addr >= start_addr[k]) |-> ##[0:SL_RT] (master[k].ar_id == {j[0],slave[j].ar_id[AXI_ID_WIDTH-1:0]}) );
-            
-            id_master_iface_aw: assert property(@(posedge clk) disable iff(!rst_n)
-            (slave[j].aw_valid && slave[j].aw_addr < end_addr[k] && slave[j].aw_addr >= start_addr[k]) |-> ##[0:SL_RT] (master[k].aw_id == {j[0],slave[j].aw_id[AXI_ID_WIDTH-1:0]}) );
-        end
+
+            valid_master_iface_ar: assert property(@(posedge clk) disable iff(!rst_n)
+            slave[j].ar_valid && slave[j].ar_addr < end_addr[k] && slave[j].ar_addr >= start_addr[k] |->
+                 ##[0:SL_RT * NB_SLAVE] (master[k].ar_valid && slave[j].ar_valid && slave[j].ar_ready && master[k].ar_ready && (master[k].ar_addr == slave[j].ar_addr) ) );
+
+             /*
+            valid_master_iface_aw: assert property(@(posedge clk) disable iff(!rst_n)
+            slave[j].aw_valid && slave[j].aw_addr < end_addr[k] && slave[j].aw_addr >= start_addr[k] |->
+                 ##[0:SL_RT * 2 *  NB_SLAVE] (master[k].aw_valid && slave[j].aw_valid && slave[j].aw_ready && master[k].aw_ready && (master[k].aw_addr == slave[j].aw_addr) ) );
+             */
+
+            valid_master_iface_w: assert property(@(posedge clk) disable iff(!rst_n)
+            slave[j].aw_valid && slave[j].aw_addr < end_addr[k] && slave[j].aw_addr >= start_addr[k] |->
+                 ##[0:(SL_RT * 2 * NB_SLAVE)] (master[k].w_valid && slave[j].w_valid && slave[j].w_ready && master[k].w_ready && (master[k].w_data == slave[j].w_data)) );
+
+            valid_slave_iface_b: assert property(@(posedge clk) disable iff(!rst_n)
+            master[k].b_valid && (master[k].b_id[AXI_ID_WIDTH_INIT-1:AXI_ID_WIDTH] == j) |->
+                 ##[0:SL_RT * NB_MASTER] (slave[j].b_valid && master[k].b_valid && master[k].b_ready && slave[j].b_ready
+                 && (slave[j].b_id[AXI_ID_WIDTH-1:0] == master[k].b_id[AXI_ID_WIDTH-1:0]) ) );
+
+            valid_slave_iface_r: assert property(@(posedge clk) disable iff(!rst_n)
+                    master[k].r_valid && (master[k].r_id[AXI_ID_WIDTH_INIT-1:AXI_ID_WIDTH] == j) |->
+                    ##[0:SL_RT * NB_MASTER] (slave[j].r_valid && master[k].r_valid && master[k].r_ready && slave[j].r_ready && 
+                    (slave[j].r_id[AXI_ID_WIDTH-1:0] == master[k].r_id[AXI_ID_WIDTH-1:0]) ) );
+
+       end
     end
 endgenerate
 
@@ -689,34 +761,7 @@ endgenerate
 //for example at master node 1, if there are outstanding requests from slave ports 2 and 3, then pending_reqs[1][2] and pending_reqs[1][3] = 1.
 //most_recent_gnt[0] will be a onehot vector indicating which slave port had the last access to the master.
 //Need this for every channel -> Yes
-logic [NB_MASTER-1:0][NB_SLAVE-1:0] ar_pending_reqs;
-logic [NB_MASTER-1:0][NB_SLAVE-1:0] ar_most_recent_gnt;
-integer onehot_ar_gnt[NB_MASTER];
 
-logic [NB_MASTER-1:0][NB_SLAVE-1:0] aw_pending_reqs;
-logic [NB_MASTER-1:0][NB_SLAVE-1:0] aw_most_recent_gnt;
-integer onehot_aw_gnt[NB_MASTER];
-
-logic [NB_MASTER-1:0][NB_SLAVE-1:0] w_pending_reqs;
-logic [NB_MASTER-1:0][NB_SLAVE-1:0] w_most_recent_gnt;
-integer onehot_w_gnt[NB_MASTER];
-
-
-logic [NB_SLAVE-1:0][NB_MASTER-1:0] r_pending_reqs;
-logic [NB_SLAVE-1:0][NB_MASTER-1:0] r_most_recent_gnt;
-integer onehot_r_gnt[NB_SLAVE];
-
-logic [NB_SLAVE-1:0][NB_MASTER-1:0] b_pending_reqs;
-logic [NB_SLAVE-1:0][NB_MASTER-1:0] b_most_recent_gnt;
-integer onehot_b_gnt[NB_SLAVE];
-
-logic [NB_SLAVE-1:0] slave_port_serv;
-logic [NB_MASTER-1:0] master_port_serv;
-/*
-sequence addr_check(addr, master_port_id);
-   addr < end_addr[k] && addr >= start_addr[k];
-endsequence
-*/
 function [NB_SLAVE-1:0] find_next_slave; // function definition starts here
     input [NB_SLAVE-1:0] pending_reqs;
     input [NB_SLAVE-1:0] most_recent_gnt;
@@ -764,32 +809,6 @@ function [NB_MASTER-1:0] find_next_master; // function definition starts here
     end
     end
 endfunction
-
-generate
-    genvar i,k;
-    for (k=0; k<NB_MASTER; k++) begin
-        for (i=0; i<NB_SLAVE; i++) begin
-/*          assign ar_pending_reqs[k][i] = ((s_slave_ar_valid[i]) && s_slave_ar_addr[i] <= end_addr[k] && s_slave_ar_addr[i] >= start_addr[k]); */
-            
-        end
-    end
-endgenerate
-
-logic [NB_SLAVE-1:0][AXI_ADDR_WIDTH-1:0]    prev_slave_ar_addr;
-logic [NB_SLAVE-1:0]                prev_slave_ar_valid;
-logic [NB_SLAVE-1:0][AXI_ADDR_WIDTH-1:0]    prev_slave_aw_addr;
-logic [NB_SLAVE-1:0]                prev_slave_aw_valid;
-
-always @(posedge clk) begin
-    integer i;  
-    for(i=0; i<NB_SLAVE; i=i+1) begin
-        prev_slave_ar_addr[i] <= s_slave_ar_addr[i];    
-        prev_slave_ar_valid[i] <= s_slave_ar_valid[i];
-        prev_slave_aw_addr[i] <= s_slave_aw_addr[i];    
-        prev_slave_aw_valid[i] <= s_slave_aw_valid[i];
-    end
-end
-
 
 function [NB_MASTER-1:0][NB_SLAVE-1:0] gen_pending; // function definition starts here
     input [NB_SLAVE-1:0] gp_aw_valid;
@@ -909,51 +928,6 @@ always @(posedge clk) begin
     end 
 end
 
-/*
-always @(posedge clk) begin
-    integer k;
-    integer i;
-    if(!rst_n) begin
-        for (k=0; k<NB_MASTER; k++) begin
-            for (i=0; i<NB_SLAVE; i++) begin
-                aw_pending_reqs[k][i] = 0;
-                w_pending_reqs[k][i] = 0;
-                ar_pending_reqs[k][i] = 0;
-                aw_most_recent_gnt[k][i] = 0;
-                w_most_recent_gnt[k][i] = 0;
-                ar_most_recent_gnt[k][i] = 0;
-            end
-            aw_most_recent_gnt[k][NB_SLAVE-1] = 1;
-            w_most_recent_gnt[k][NB_SLAVE-1] = 1;
-            ar_most_recent_gnt[k][NB_SLAVE-1] = 1;      
-            onehot_aw_gnt[k] = NB_SLAVE-1;
-            onehot_w_gnt[k] = NB_SLAVE-1;
-            onehot_ar_gnt[k] = NB_SLAVE-1;  
-        end 
-    end
-    else begin
-    
-        if (s_master_w_ready[k]) begin
-            //find x (i.e. next slave port which will be serviced)
-            if (|(w_pending_reqs[k])) begin
-                w_most_recent_gnt[k] = find_next_slave(w_pending_reqs[k], w_most_recent_gnt[k]);
-                w_pending_reqs[k] = w_pending_reqs[k] ^ w_most_recent_gnt[k];
-                onehot_w_gnt[k] = onehot_s_to_bin(w_most_recent_gnt[k]);
-            end
-        end
-        if (s_master_ar_ready[k]) begin
-            //find x (i.e. next slave port which will be serviced)
-            if (|(ar_pending_reqs[k])) begin
-                ar_most_recent_gnt[k] = find_next_slave(ar_pending_reqs[k], ar_most_recent_gnt[k]);
-                ar_pending_reqs[k] = ar_pending_reqs[k] ^ ar_most_recent_gnt[k];
-                onehot_ar_gnt[k] = onehot_s_to_bin(ar_most_recent_gnt[k]);
-            end
-        end             
-    end
-    end
-end
-
-*/
 function integer onehot_m_to_bin;   
     input [NB_MASTER-1:0] invec;
     integer i;
@@ -981,62 +955,19 @@ generate
 
         RR_prop_aw_id: assert property (@(posedge clk) disable iff (!rst_n)
             (s_master_aw_valid[k]) && (s_master_aw_ready[k]) |-> 
-                master[k].aw_id == {cmb_onehot_aw_gnt[k][0],s_slave_aw_id[cmb_onehot_aw_gnt[k]][AXI_ID_WIDTH-1:0]});
+                master[k].aw_id == {cmb_onehot_aw_gnt[k][AXI_ID_WIDTH_INIT-AXI_ID_WIDTH-1:0],s_slave_aw_id[cmb_onehot_aw_gnt[k]][AXI_ID_WIDTH-1:0]});
 
         RR_prop_ar: assert property (@(posedge clk) disable iff (!rst_n)
             master[k].ar_ready && master[k].ar_valid |-> 
                 (master[k].ar_addr == s_slave_ar_addr[cmb_onehot_ar_gnt[k]]) && s_slave_ar_valid[cmb_onehot_ar_gnt[k]]);
 
-
         RR_prop_ar_id: assert property (@(posedge clk) disable iff (!rst_n)
             (s_master_ar_valid[k]) && (s_master_ar_ready[k]) |-> 
-                master[k].ar_id == {cmb_onehot_ar_gnt[k][0],s_slave_ar_id[cmb_onehot_ar_gnt[k]][AXI_ID_WIDTH-1:0]});
+                master[k].ar_id == {cmb_onehot_ar_gnt[k][AXI_ID_WIDTH_INIT-AXI_ID_WIDTH-1:0],s_slave_ar_id[cmb_onehot_ar_gnt[k]][AXI_ID_WIDTH-1:0]});
 
 
     end
-/*
-    for(k=0; k<NB_SLAVE; k=k+1) begin
-        assert property (@(posedge clk) disable iff (rst_n)
-            if req_gnt_signal |-> req_gnt_signal = (pending_req that comes after most_recent_gnt));
-    end*/
+
 endgenerate
-/*
-sequence id_check();
-
-endsequence
-    
-always @(posedge clk) begin
-    localparam k, i;
-    for (k=0; k<NB_SLAVE; k++) begin
-        for (i=0; i<NB_MASTER; i++) begin
-            if ($rose(master[i].r_valid) && id_check(master[i].b_id, k)) begin
-                r_pending_reqs[i][k] = 1;
-            end
-            if ($rose(master[i].b_valid) && id_check(master[i].r_id, k)) begin
-                w_pending_reqs[i][k] = 1;
-            end
-
-        end
-
-        if (slave[k].b_ready) begin
-            //find x (i.e. next slave port which will be serviced)
-            if (b_pending_reqs[k]) begin
-                master_port_serv = find_next_master(b_pending_reqs[k], b_most_recent_gnt[k]);
-                b_pending_reqs[k] = b_pending_reqs[k] ^ master_port_serv;
-                b_most_recent_gnt[k] = master_port_serv;
-            end
-        end
-        if (slave[k].r_ready) begin
-            //find x (i.e. next slave port which will be serviced)
-            if (r_pending_reqs[k]) begin
-                master_port_serv = find_next_master(r_pending_reqs[k], r_most_recent_gnt[k]);
-                r_pending_reqs[k] = r_pending_reqs[k] ^ master_port_serv;
-                r_most_recent_gnt[k] = master_port_serv;
-            end
-        end
-
-    end
-end*/
-
 
 endmodule
