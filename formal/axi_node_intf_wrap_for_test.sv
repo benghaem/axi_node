@@ -395,6 +395,8 @@ module axi_node_intf_wrap #(
 
 //SLAVE RESPONSE TIME
 localparam SL_RT = 3;
+
+//Maximum Burst length
 localparam MX_BURST = 2;
 
 //
@@ -405,6 +407,7 @@ localparam MX_BURST = 2;
 //
 //
 
+//Addressing setup
 parameter mm_start = 32'h0000;
 parameter mm_len = 32'h1000;
 
@@ -461,7 +464,7 @@ property a_imp_stable(sig_a, sig_stable);
     sig_a |-> $stable(sig_stable);
 endproperty
 
-
+//All addresses are valid, have correct ids, and only select region 0
 generate
     genvar j;
     for (j = 0; j < NB_SLAVE; j++)
@@ -483,9 +486,6 @@ endgenerate
 //  / _ \\__ \__ \ |_| | |\/| | _|
 // /_/ \_\___/___/\___/|_|  |_|___|
 //
-
-
-
 
 
 generate
@@ -540,8 +540,6 @@ generate
             slave[j].r_ready == 1);
         correct_b_ready_start: assume property(@(posedge clk) disable iff(!rst_n)
             slave[j].b_ready == 1);
-
-
 
 
         // Valid should remain high until the cycle after ready is asserted
@@ -601,6 +599,8 @@ endgenerate
 //
 //
 
+//Keep a log of outstanding writes
+
 logic [NB_SLAVE-1:0] outstanding_write;
 
 always @(posedge clk) begin
@@ -637,11 +637,6 @@ generate
 
     assume property(@(posedge clk) disable iff (!rst_n)
         !slave[j].w_valid |-> !slave[j].w_last);
-
-        /*
-    assume property(@(posedge clk) disable iff (!rst_n)
-        slave[j].w_valid |-> slave[j].aw_valid);
-        */
 
     assume property(@(posedge clk) disable iff (!rst_n)
         slave[j].w_last |=> !slave[j].w_valid);
@@ -732,11 +727,9 @@ generate
             slave[j].ar_valid && slave[j].ar_addr < end_addr[k] && slave[j].ar_addr >= start_addr[k] |->
                  ##[0:SL_RT * NB_SLAVE] (master[k].ar_valid && slave[j].ar_valid && slave[j].ar_ready && master[k].ar_ready && (master[k].ar_addr == slave[j].ar_addr) ) );
 
-             /*
             valid_master_iface_aw: assert property(@(posedge clk) disable iff(!rst_n)
             slave[j].aw_valid && slave[j].aw_addr < end_addr[k] && slave[j].aw_addr >= start_addr[k] |->
                  ##[0:SL_RT * 2 *  NB_SLAVE] (master[k].aw_valid && slave[j].aw_valid && slave[j].aw_ready && master[k].aw_ready && (master[k].aw_addr == slave[j].aw_addr) ) );
-             */
 
             valid_master_iface_w: assert property(@(posedge clk) disable iff(!rst_n)
             slave[j].aw_valid && slave[j].aw_addr < end_addr[k] && slave[j].aw_addr >= start_addr[k] |->
@@ -946,6 +939,8 @@ function integer onehot_s_to_bin;
     end
 endfunction
 
+
+//Round robin assertions
 generate
     genvar k;
     for(k=0; k<NB_MASTER; k=k+1) begin

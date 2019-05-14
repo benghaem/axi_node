@@ -1,0 +1,9 @@
+rst_n
+0
+\slave[*].ar_valid
+0
+\slave[*].aw_valid
+0
+clk
+1
+
