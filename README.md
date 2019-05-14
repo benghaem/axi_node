@@ -4,10 +4,15 @@
 To run the following project please do the following:
 
 `git clone https://github.com/benghaem/axi_node`
+
 `cd axi_node`
+
 `git submodule update --init`
+
 `cd formal`
+
 `module load cadence/2016 # or equiv`
+
 `make`
 
 # AXI Interconnect
