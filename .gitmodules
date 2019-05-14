@@ -1,0 +1,6 @@
+[submodule "deps/axi"]
+	path = deps/axi
+	url = https://github.com/pulp-platform/axi
+[submodule "deps/common_cells"]
+	path = deps/common_cells
+	url = https://github.com/pulp-platform/common_cells
