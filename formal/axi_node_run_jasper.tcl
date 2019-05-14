@@ -21,7 +21,7 @@ analyze -sv ../src/apb_regs_top.sv \
     ../src/axi_request_block.sv \
     ../src/axi_response_block.sv \
     ../src/axi_RR_Flag_Req.sv \
-    ../deps/common_cells/src/fifo_v2.sv \
+    ../deps/common_cells/src/deprecated/fifo_v2.sv \
     ../deps/common_cells/src/fifo_v3.sv \
     ../formal/axi_intf_for_test.sv \
     ../formal/axi_node_intf_wrap_for_test.sv
