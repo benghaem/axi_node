@@ -1,4 +1,7 @@
 # UT ECE Verification of Digital Systems Final Project
+
+Benjamin Ghaemmaghami and Varunesh Goyal
+
 ## Formal Verification of an AXI4 Interconnect
 
 To run the following project please do the following:
